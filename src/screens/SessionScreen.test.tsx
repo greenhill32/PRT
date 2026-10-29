@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import 'fake-indexeddb/auto';
 import { beforeEach, afterEach, describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, cleanup, act } from '@testing-library/react';
 import * as api from '../supabase';
 import { clearQueue, queueEvent, getQueuedEventsBySession } from '../queue';
 import SessionScreen from './SessionScreen';
@@ -42,7 +42,7 @@ describe('Session resume', () => {
     const view = render(<SessionScreen sessionId="session" onEndSession={() => {}} />);
     await screen.findByText('Enter plank');
     fireEvent.change(screen.getByPlaceholderText('e.g., 2:02 or 122'), { target: { value: '2:02' } });
-    fireEvent.click(screen.getByText('Confirm', { exact: true }));
+    await act(async () => { fireEvent.click(screen.getByText('Confirm', { exact: true })); });
     await screen.findByText('Enter row 2k');
     expect((await getQueuedEventsBySession('session')).length).toBe(2);
     view.unmount();
@@ -50,6 +50,15 @@ describe('Session resume', () => {
     await screen.findByText('Enter row 2k');
     expect(reopened.container.querySelector('.score-large')?.textContent).toBe('70');
     await waitFor(() => expect(screen.getByText('2 unsynced')).toBeTruthy());
+  });
+  it('opens this session in Progress after saving successfully', async () => {
+    vi.mocked(api.getSessionEvents).mockResolvedValue(['pushups', 'plank', 'row_2k'].map((type, index) => ({ ...event, event_id: type, event_type: type, raw_value: [38, 122, 530][index] })) as any);
+    const onViewProgress = vi.fn(), onEndSession = vi.fn();
+    render(<SessionScreen sessionId="session" onEndSession={onEndSession} onViewProgress={onViewProgress} />);
+    await screen.findByText(/All three events confirmed/);
+    await act(async () => { fireEvent.click(screen.getByText('Save Session')); });
+    expect(onViewProgress).toHaveBeenCalledWith('session');
+    expect(onEndSession).not.toHaveBeenCalled();
   });
   it('does not show a leaderboard in practice sessions', async () => {
     vi.mocked(api.getSession).mockResolvedValue({ ...session, kind: 'practice', competitor_snapshot: {} });

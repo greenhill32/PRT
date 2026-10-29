@@ -3,11 +3,12 @@ import './App.css';
 import AuthScreen from './screens/AuthScreen';
 import HomeScreen from './screens/HomeScreen';
 import SessionScreen from './screens/SessionScreen';
+import ProgressScreen from './screens/ProgressScreen';
 import { getCurrentUser, onAuthStateChange } from './supabase';
 import { setupNetworkWatcher, cleanupSync } from './sync';
 import { initDB } from './queue';
 
-type Screen = 'auth' | 'home' | 'session';
+type Screen = 'auth' | 'home' | 'session' | 'progress';
 interface AppState { user: any | null; currentScreen: Screen; sessionId: string | null }
 
 export default function App() {
@@ -42,11 +43,14 @@ export default function App() {
     ...previous, currentScreen: 'session', sessionId
   }));
   const endSession = () => setState(previous => ({ ...previous, currentScreen: 'home', sessionId: null }));
+  const openProgress = (sessionId?: string) => setState(previous => ({ ...previous, currentScreen: 'progress', sessionId: sessionId ?? null }));
   return <div className="app">
     {state.currentScreen === 'auth' && <AuthScreen />}
-    {state.currentScreen === 'home' && <HomeScreen user={state.user} onStartSession={startSession}
+    {state.currentScreen === 'home' && <HomeScreen user={state.user} onStartSession={startSession} onViewProgress={() => openProgress()}
       onLogout={() => setState({ user: null, currentScreen: 'auth', sessionId: null })} />}
     {state.currentScreen === 'session' && state.sessionId &&
-      <SessionScreen key={state.sessionId} sessionId={state.sessionId} onEndSession={endSession} />}
+      <SessionScreen key={state.sessionId} sessionId={state.sessionId} onEndSession={endSession} onViewProgress={openProgress} />}
+    {state.currentScreen === 'progress' && state.user && <ProgressScreen userId={state.user.id}
+      initialSessionId={state.sessionId} onBack={endSession} onViewSession={startSession} />}
   </div>;
 }

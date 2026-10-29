@@ -11,6 +11,7 @@ vi.mock('./supabase', () => ({
   getCurrentUser: vi.fn(async () => ({ id: 'owner' })),
   onAuthStateChange: vi.fn(() => ({ data: { subscription: { unsubscribe: vi.fn() } } }))
 }));
+vi.mock('./screens/ProgressScreen', () => ({ default: () => <div>Progress view</div> }));
 vi.mock('./screens/AuthScreen', () => ({ default: () => <div>Sign in screen</div> }));
 vi.mock('./screens/HomeScreen', () => ({ default: ({ onStartSession }: any) =>
   <button onClick={() => onStartSession('session')}>Open workout</button> }));

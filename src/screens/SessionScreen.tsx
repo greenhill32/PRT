@@ -11,9 +11,9 @@ import type { Session, Event, QueuedEvent } from '../types';
 import type { WorkoutEventType } from '../sessionState';
 import '../styles/SessionScreen.css';
 
-interface SessionScreenProps { sessionId: string; onEndSession: () => void }
+interface SessionScreenProps { sessionId: string; onEndSession: () => void; onViewProgress?: (id?: string) => void }
 
-export default function SessionScreen({ sessionId, onEndSession }: SessionScreenProps) {
+export default function SessionScreen({ sessionId, onEndSession, onViewProgress }: SessionScreenProps) {
   const [session, setSession] = useState<Session | null>(null);
   const [events, setEvents] = useState<Event[]>([]);
   const [queuedCount, setQueuedCount] = useState(0);
@@ -110,7 +110,8 @@ export default function SessionScreen({ sessionId, onEndSession }: SessionScreen
     try {
       if (nextMissingEvent(events)) throw new Error('Confirm all three results before completing the session.');
       await completeSession(sessionId);
-      onEndSession();
+      if (onViewProgress) onViewProgress(sessionId);
+      else setSession(previous => previous ? { ...previous, state: 'completed', completed_at: new Date().toISOString() } : previous);
     } catch (error) { setMessage(errorMessage(error)); }
     finally { setSaving(false); await updateQueuedCount().catch(console.error); }
   };
@@ -130,6 +131,7 @@ export default function SessionScreen({ sessionId, onEndSession }: SessionScreen
             <span className="queued-badge">{queuedCount} unsynced</span>
           )}
           <button onClick={onEndSession} className="secondary-button">Back</button>
+          {onViewProgress && <button onClick={() => onViewProgress(session.state === 'completed' ? sessionId : undefined)} className="secondary-button">Progress</button>}
           {session.state === 'in_progress' && <button onClick={handleSaveSession} className="primary-button" disabled={saving || confirming}>
             {saving ? 'Saving...' : 'Save Session'}
           </button>}

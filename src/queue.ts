@@ -7,7 +7,8 @@ const BASELINE_STORE = 'baseline-cache';
 const COMPETITOR_STORE = 'competitor-cache';
 const SESSION_STORE = 'session-cache';
 const EVENT_STORE = 'event-cache';
-const DB_VERSION = 2;
+const PROGRESS_STORE = 'progress-cache';
+const DB_VERSION = 3;
 let db: IDBDatabase | null = null;
 let opening: Promise<IDBDatabase> | null = null;
 
@@ -24,9 +25,9 @@ export function initDB(): Promise<IDBDatabase> {
     };
     request.onupgradeneeded = () => {
       const database = request.result;
-      for (const name of [QUEUE_STORE, BASELINE_STORE, COMPETITOR_STORE, SESSION_STORE, EVENT_STORE]) {
+      for (const name of [QUEUE_STORE, BASELINE_STORE, COMPETITOR_STORE, SESSION_STORE, EVENT_STORE, PROGRESS_STORE]) {
         if (!database.objectStoreNames.contains(name)) {
-          database.createObjectStore(name, { keyPath: name === QUEUE_STORE ? 'event_id' : 'session_id' });
+          database.createObjectStore(name, { keyPath: name === QUEUE_STORE ? 'event_id' : name === PROGRESS_STORE ? 'user_id' : 'session_id' });
         }
       }
     };
@@ -141,4 +142,12 @@ export async function getCachedSessionEvents(id: string): Promise<Event[]> {
 }
 export async function cacheSyncedEvent(event: Event): Promise<void> {
   await cacheSessionEvents(event.session_id, [event]);
+}
+
+export interface CachedProgressHistory { sessions: Session[]; events: Event[]; fetchedAt: string }
+export const cacheProgressHistory = (user_id: string, data: CachedProgressHistory): Promise<void> =>
+  request(PROGRESS_STORE, 'readwrite', store => store.put({ user_id, data }));
+export async function getCachedProgressHistory(user_id: string): Promise<CachedProgressHistory | null> {
+  const row = await request<{ data: CachedProgressHistory } | undefined>(PROGRESS_STORE, 'readonly', store => store.get(user_id));
+  return row?.data ?? null;
 }

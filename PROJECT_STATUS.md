@@ -46,3 +46,7 @@ Follow [DEPLOY_HANDOFF.md](DEPLOY_HANDOFF.md). Do not rerun migration 001 agains
 The coach now queries with the caller's JWT and an automatically supplied Supabase anon/publishable key, so RLS applies. It no longer needs the service-role key.
 
 A live iPhone/Safari smoke test and one real authenticated coach call remain outstanding.
+
+## Progress page and league
+
+The progress feature adds Session/Week/Month/Year/All time filters, event statistics, charts, recorded totals and cumulative league standings derived from persisted history. It loads all completed sessions with pagination and labels its account-specific offline snapshot. No new Supabase schema is needed. See [PROGRESS_HANDOFF.md](PROGRESS_HANDOFF.md) for rollout and live verification.

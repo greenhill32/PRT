@@ -131,7 +131,7 @@ export function buildLeaderboard(
 
   // Assign ranks
   rows.forEach((row, idx) => {
-    row.rank = idx + 1;
+    row.rank = idx > 0 && row.overall_score === rows[idx - 1].overall_score ? rows[idx - 1].rank : idx + 1;
   });
 
   return rows;

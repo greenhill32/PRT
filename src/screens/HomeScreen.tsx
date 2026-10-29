@@ -17,9 +17,10 @@ interface HomeScreenProps {
   user: any;
   onStartSession: (sessionId: string) => void;
   onLogout: () => void;
+  onViewProgress?: () => void;
 }
 
-export default function HomeScreen({ user, onStartSession, onLogout }: HomeScreenProps) {
+export default function HomeScreen({ user, onStartSession, onLogout, onViewProgress }: HomeScreenProps) {
   const [sessions, setSessions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
@@ -175,6 +176,11 @@ export default function HomeScreen({ user, onStartSession, onLogout }: HomeScree
             </button>
           </div>
         </section>
+
+        {onViewProgress && <button className="progress-home-link" onClick={onViewProgress}>
+          <span><strong>Your progress</strong><small>Scores, personal bests and league standings</small></span>
+          <span aria-hidden="true">↗</span>
+        </button>}
 
         <section className="recent-sessions-section">
           <h2>Recent Sessions</h2>
