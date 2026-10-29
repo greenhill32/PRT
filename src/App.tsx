@@ -8,101 +8,45 @@ import { setupNetworkWatcher, cleanupSync } from './sync';
 import { initDB } from './queue';
 
 type Screen = 'auth' | 'home' | 'session';
+interface AppState { user: any | null; currentScreen: Screen; sessionId: string | null }
 
-interface AppState {
-  user: any | null;
-  currentScreen: Screen;
-  sessionId: string | null;
-}
-
-function App() {
-  const [state, setState] = useState<AppState>({
-    user: null,
-    currentScreen: 'auth',
-    sessionId: null
-  });
+export default function App() {
+  const [state, setState] = useState<AppState>({ user: null, currentScreen: 'auth', sessionId: null });
 
   useEffect(() => {
-    const initialize = async () => {
-      // Initialize IndexedDB
-      await initDB();
-
-      // Check current user
-      const user = await getCurrentUser();
-      setState((prev) => ({
-        ...prev,
-        user,
-        currentScreen: user ? 'home' : 'auth'
-      }));
-
-      // Setup auth state listener
-      const { data: { subscription } } = onAuthStateChange((user) => {
-        setState((prev) => ({
-          ...prev,
-          user,
-          currentScreen: user ? 'home' : 'auth'
-        }));
+    let cancelled = false;
+    let unsubscribe: (() => void) | undefined;
+    const setUser = (user: any) => {
+      if (cancelled) return;
+      setState(previous => {
+        const sameUser = user && previous.user?.id === user.id;
+        return {
+          user, currentScreen: sameUser ? previous.currentScreen : user ? 'home' : 'auth',
+          sessionId: sameUser ? previous.sessionId : null
+        };
       });
-
-      // Setup sync listeners
-      setupNetworkWatcher((count) => {
-        // Update UI with queued count if needed
-        if (count > 0) {
-          console.log(`${count} events queued for sync`);
-        }
-      });
-
-      return () => {
-        subscription?.unsubscribe();
-        cleanupSync();
-      };
     };
-
-    initialize().catch(console.error);
+    const initialize = async () => {
+      await initDB();
+      if (cancelled) return;
+      const { data: { subscription } } = onAuthStateChange(setUser);
+      unsubscribe = () => subscription.unsubscribe();
+      setUser(await getCurrentUser());
+      if (!cancelled) setupNetworkWatcher(() => {});
+    };
+    void initialize().catch(console.error);
+    return () => { cancelled = true; unsubscribe?.(); cleanupSync(); };
   }, []);
 
-  const handleStartSession = (sessionId: string) => {
-    setState((prev) => ({
-      ...prev,
-      currentScreen: 'session',
-      sessionId
-    }));
-  };
-
-  const handleEndSession = () => {
-    setState((prev) => ({
-      ...prev,
-      currentScreen: 'home',
-      sessionId: null
-    }));
-  };
-
-  const handleLogout = async () => {
-    setState((prev) => ({
-      ...prev,
-      user: null,
-      currentScreen: 'auth'
-    }));
-  };
-
-  return (
-    <div className="app">
-      {state.currentScreen === 'auth' && <AuthScreen />}
-      {state.currentScreen === 'home' && (
-        <HomeScreen
-          user={state.user}
-          onStartSession={handleStartSession}
-          onLogout={handleLogout}
-        />
-      )}
-      {state.currentScreen === 'session' && state.sessionId && (
-        <SessionScreen
-          sessionId={state.sessionId}
-          onEndSession={handleEndSession}
-        />
-      )}
-    </div>
-  );
+  const startSession = (sessionId: string) => setState(previous => ({
+    ...previous, currentScreen: 'session', sessionId
+  }));
+  const endSession = () => setState(previous => ({ ...previous, currentScreen: 'home', sessionId: null }));
+  return <div className="app">
+    {state.currentScreen === 'auth' && <AuthScreen />}
+    {state.currentScreen === 'home' && <HomeScreen user={state.user} onStartSession={startSession}
+      onLogout={() => setState({ user: null, currentScreen: 'auth', sessionId: null })} />}
+    {state.currentScreen === 'session' && state.sessionId &&
+      <SessionScreen key={state.sessionId} sessionId={state.sessionId} onEndSession={endSession} />}
+  </div>;
 }
-
-export default App;

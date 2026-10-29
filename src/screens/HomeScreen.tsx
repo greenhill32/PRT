@@ -65,13 +65,13 @@ export default function HomeScreen({ user, onStartSession, onLogout }: HomeScree
       const competitor_seed = Math.floor(Math.random() * 1000000);
 
       // Generate competitors (including Ghost You from real prior results if available)
-      const ghostYouData = mostRecentSessionResults ? {
+      const ghostYouData = mostRecentSessionResults && ['pushups', 'plank', 'row_2k'].every(type => mostRecentSessionResults[type] !== undefined) ? {
         pushups: mostRecentSessionResults.pushups || 0,
         plank: mostRecentSessionResults.plank || 0,
         row_2k: mostRecentSessionResults.row_2k || 0
       } : undefined;
 
-      const competitors = generateCompetitors(
+      const competitors = kind === 'saturday_prt' ? generateCompetitors(
         baseline || {
           pushups_median: 30,
           plank_median_sec: 90,
@@ -79,7 +79,7 @@ export default function HomeScreen({ user, onStartSession, onLogout }: HomeScree
         },
         competitor_seed,
         ghostYouData
-      );
+      ) : {};
 
       // Create session
       const session = await createSession(
@@ -175,12 +175,10 @@ export default function HomeScreen({ user, onStartSession, onLogout }: HomeScree
                   className="session-card"
                   style={{
                     borderLeftColor: session.kind === 'saturday_prt' ? '#3b82f6' : '#6b7280',
-                    cursor: session.state === 'in_progress' ? 'pointer' : 'default'
+                    cursor: 'pointer'
                   }}
                   onClick={() => {
-                    if (session.state === 'in_progress') {
-                      onStartSession(session.session_id);
-                    }
+                    onStartSession(session.session_id);
                   }}
                 >
                   <div className="session-date">
