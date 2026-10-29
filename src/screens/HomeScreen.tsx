@@ -174,7 +174,13 @@ export default function HomeScreen({ user, onStartSession, onLogout }: HomeScree
                   key={session.session_id}
                   className="session-card"
                   style={{
-                    borderLeftColor: session.kind === 'saturday_prt' ? '#3b82f6' : '#6b7280'
+                    borderLeftColor: session.kind === 'saturday_prt' ? '#3b82f6' : '#6b7280',
+                    cursor: session.state === 'in_progress' ? 'pointer' : 'default'
+                  }}
+                  onClick={() => {
+                    if (session.state === 'in_progress') {
+                      onStartSession(session.session_id);
+                    }
                   }}
                 >
                   <div className="session-date">
@@ -184,7 +190,7 @@ export default function HomeScreen({ user, onStartSession, onLogout }: HomeScree
                     {session.kind === 'saturday_prt' ? '🏋️ Saturday PRT' : '📝 Practice'}
                   </div>
                   <div className="session-state">
-                    {session.state === 'completed' ? '✓ Completed' : 'In Progress'}
+                    {session.state === 'completed' ? '✓ Completed' : 'In Progress' + (session.state === 'in_progress' ? ' — tap to continue' : '')}
                   </div>
                 </div>
               ))}

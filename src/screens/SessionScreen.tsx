@@ -33,6 +33,24 @@ export default function SessionScreen({ sessionId, onEndSession }: SessionScreen
     return () => clearInterval(interval);
   }, []);
 
+  // Restore revealed events and queue status on mount
+  useEffect(() => {
+    const restoreState = async () => {
+      try {
+        // Restore revealed events from unsynced queue
+        const { getQueuedEventsBySession } = await import('../queue');
+        const queued = await getQueuedEventsBySession(sessionId);
+        const queuedEventTypes = new Set(queued.map(e => e.event_type as EventType));
+        if (queuedEventTypes.size > 0) {
+          setRevealedEvents(prev => new Set([...prev, ...queuedEventTypes]));
+        }
+      } catch (error) {
+        console.error('Failed to restore session state:', error);
+      }
+    };
+    restoreState();
+  }, [sessionId]);
+
   useEffect(() => {
     if (session) {
       updateLeaderboard();
@@ -99,8 +117,47 @@ export default function SessionScreen({ sessionId, onEndSession }: SessionScreen
     return parseInt(trimmed, 10);
   };
 
+  const validateInput = (input: string, eventType: EventType): { valid: boolean; error?: string } => {
+    const trimmed = input.trim();
+
+    if (!trimmed) {
+      return { valid: false, error: 'Value cannot be empty' };
+    }
+
+    const rawValue = parseTimeInput(trimmed, eventType);
+
+    if (isNaN(rawValue)) {
+      return { valid: false, error: 'Invalid input. Use numbers or mm:ss format.' };
+    }
+
+    if (rawValue < 0) {
+      return { valid: false, error: 'Value must be positive' };
+    }
+
+    // Check for absurd values
+    if (eventType === 'pushups') {
+      if (rawValue > 500) {
+        return { valid: false, error: 'Too many push-ups (max 500)' };
+      }
+    } else if (eventType === 'plank' || eventType === 'row_2k') {
+      // Times in seconds
+      if (rawValue > 3600) { // More than 1 hour
+        return { valid: false, error: 'Time too long (max 1 hour)' };
+      }
+    }
+
+    return { valid: true };
+  };
+
   const handleConfirmEvent = async () => {
     if (!inputValue || !session) return;
+
+    // Validate input first
+    const validation = validateInput(inputValue, currentEvent);
+    if (!validation.valid) {
+      alert(`Invalid ${currentEvent}: ${validation.error}`);
+      return;
+    }
 
     setConfirming(true);
     try {
@@ -151,6 +208,18 @@ export default function SessionScreen({ sessionId, onEndSession }: SessionScreen
       }
 
       setInputValue('');
+
+      // Attempt immediate sync if online
+      if (navigator.onLine) {
+        try {
+          const { syncQueue } = await import('../sync');
+          await syncQueue();
+        } catch (syncError) {
+          // Sync error is not critical - event is queued locally
+          console.log('Sync after confirm failed (will retry):', syncError);
+        }
+      }
+
       updateQueuedCount();
     } catch (error) {
       console.error('Failed to confirm event:', error);
@@ -174,12 +243,52 @@ export default function SessionScreen({ sessionId, onEndSession }: SessionScreen
 
   const handleSaveSession = async () => {
     try {
+      // Check if all 3 events are confirmed
+      const eventTypes = ['pushups', 'plank', 'row_2k'];
+      const confirmedEvents = eventTypes.filter(type => {
+        return events.some(e => e.event_type === type && !e.event_type.includes('void'));
+      });
+
+      if (confirmedEvents.length !== 3) {
+        alert(`Session incomplete: ${confirmedEvents.length}/3 events entered`);
+        return;
+      }
+
+      // Attempt to sync pending events
+      let hasPending = false;
+      if (navigator.onLine) {
+        try {
+          const { syncQueue } = await import('../sync');
+          const result = await syncQueue();
+          hasPending = queuedCount > 0;
+
+          if (hasPending) {
+            const warn = confirm(
+              `${result.failed} event(s) still pending sync. Complete anyway?`
+            );
+            if (!warn) return;
+          }
+        } catch (syncError) {
+          console.log('Sync before complete failed:', syncError);
+          if (queuedCount > 0) {
+            const warn = confirm(
+              `${queuedCount} event(s) not synced. Complete anyway?`
+            );
+            if (!warn) return;
+          }
+        }
+      } else {
+        if (queuedCount > 0) {
+          alert(`${queuedCount} event(s) queued for sync. Complete session (sync when online)?`);
+        }
+      }
+
       await updateSessionState(sessionId, 'completed');
-      alert('Session saved!');
+      alert('Session completed and saved!');
       onEndSession();
     } catch (error) {
       console.error('Failed to save session:', error);
-      alert('Failed to save session');
+      alert(`Failed to save session: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 

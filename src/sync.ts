@@ -24,9 +24,12 @@ export async function syncQueue(): Promise<{
   const results = { synced: 0, failed: 0, errors: [] as string[] };
 
   try {
+    // Sync both queued and errored items (retry failed events)
     const queued = await queue.getQueuedEventsByStatus('queued');
+    const errored = await queue.getQueuedEventsByStatus('error');
+    const allToSync = [...queued, ...errored];
 
-    for (const queuedEvent of queued) {
+    for (const queuedEvent of allToSync) {
       await queue.updateQueuedEventStatus(queuedEvent.event_id, 'syncing');
 
       try {
@@ -47,18 +50,18 @@ export async function syncQueue(): Promise<{
         // Append to Supabase
         await supabase.appendEvent(dbEvent);
 
-        // Mark as synced
-        await queue.updateQueuedEventStatus(queuedEvent.event_id, 'synced');
+        // Remove from queue (successfully synced)
+        await queue.removeQueuedEvent(queuedEvent.event_id);
         results.synced++;
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
 
-        // Check if it's a duplicate (already exists)
+        // Check if it's a duplicate (already exists - idempotent)
         if (errorMsg.includes('duplicate') || errorMsg.includes('unique')) {
-          // Treat as success (idempotent retry)
-          await queue.updateQueuedEventStatus(queuedEvent.event_id, 'synced');
+          await queue.removeQueuedEvent(queuedEvent.event_id);
           results.synced++;
         } else {
+          // Keep in error state for future retry
           await queue.updateQueuedEventStatus(
             queuedEvent.event_id,
             'error',
