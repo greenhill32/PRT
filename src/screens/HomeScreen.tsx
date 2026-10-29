@@ -4,7 +4,8 @@ import {
   createSession,
   signOut,
   getPriorSaturdays,
-  getSessionEvents
+  getSessionEvents,
+  computeEffectiveResultsFromEvents
 } from '../supabase';
 import { generateBaseline, generateCompetitors } from '../competitors';
 import { cacheBaseline, cacheCompetitors } from '../queue';
@@ -40,32 +41,44 @@ export default function HomeScreen({ user, onStartSession, onLogout }: HomeScree
   const handleStartSession = async (kind: 'saturday_prt' | 'practice') => {
     setStarting(true);
     try {
-      // Get prior sessions for baseline
+      // Get prior completed Saturday sessions
       const priors = await getPriorSaturdays(5);
 
-      // For each prior session, fetch its events to get actual results
-      const priorsWithResults = [];
+      // For each prior session, fetch its events and compute effective results
+      const priorResults: Array<{ pushups?: number; plank?: number; row_2k?: number }> = [];
+      let mostRecentSessionResults: { pushups?: number; plank?: number; row_2k?: number } | null = null;
+
       for (const prior of priors) {
         const events = await getSessionEvents(prior.session_id);
-        // Extract effective results (simplified - in real app, would use computeEffectiveResults)
-        priorsWithResults.push(prior);
+        const effectiveResults = computeEffectiveResultsFromEvents(events);
+        priorResults.push(effectiveResults);
+
+        // Use the most recent session for Ghost You
+        if (!mostRecentSessionResults) {
+          mostRecentSessionResults = effectiveResults;
+        }
       }
 
-      // Generate or use baseline
-      let baseline = priors.length >= 3
-        ? generateBaseline(priorsWithResults)
-        : null;
+      // Generate baseline from actual results (or null if no prior results)
+      const baseline = priorResults.length > 0 ? generateBaseline(priorResults) : null;
 
       const competitor_seed = Math.floor(Math.random() * 1000000);
 
-      // Generate competitors
+      // Generate competitors (including Ghost You from real prior results if available)
+      const ghostYouData = mostRecentSessionResults ? {
+        pushups: mostRecentSessionResults.pushups || 0,
+        plank: mostRecentSessionResults.plank || 0,
+        row_2k: mostRecentSessionResults.row_2k || 0
+      } : undefined;
+
       const competitors = generateCompetitors(
         baseline || {
           pushups_median: 30,
           plank_median_sec: 90,
           row_median_sec: 570
         },
-        competitor_seed
+        competitor_seed,
+        ghostYouData
       );
 
       // Create session

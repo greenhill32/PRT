@@ -11,7 +11,8 @@
     "isolatedModules": true,
     "jsx": "react-jsx",
     "moduleResolution": "bundler",
-    "types": ["node"]
+    "types": ["node"],
+    "noEmit": true
   },
   "include": ["src"],
   "references": [{ "path": "./tsconfig.node.json" }]

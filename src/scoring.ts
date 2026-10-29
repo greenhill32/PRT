@@ -70,11 +70,11 @@ export const navyScoring1_0: ScoringContext = {
     ]
   },
   categories: [
-    { min: 100, max: 100, label: 'Outstanding' },
-    { min: 85, max: 99, label: 'Excellent' },
-    { min: 70, max: 84, label: 'Good' },
+    { min: 0, max: 59, label: 'Does Not Meet Standards' },
     { min: 60, max: 69, label: 'Satisfactory' },
-    { min: 0, max: 59, label: 'Does Not Meet Standards' }
+    { min: 70, max: 84, label: 'Good' },
+    { min: 85, max: 99, label: 'Excellent' },
+    { min: 100, max: 100, label: 'Outstanding' }
   ]
 };
 
@@ -82,22 +82,23 @@ export const scoringVersions: Record<string, ScoringContext> = {
   '1.0': navyScoring1_0
 };
 
-// Interpolate between thresholds linearly
+// Interpolate between thresholds linearly, including below-minimum values
 function interpolateScore(
   rawValue: number,
   thresholds: Threshold[],
   isAscending: boolean // true for pushups (higher is better), false for plank/row (lower is better)
 ): number {
-  // Handle out-of-range: below minimum or above maximum
+  const minThreshold = thresholds[0];
+  const maxThreshold = thresholds[thresholds.length - 1];
+
+  // Handle above maximum
   if (isAscending) {
-    if (rawValue >= thresholds[thresholds.length - 1].rawValue) return 100;
-    if (rawValue <= thresholds[0].rawValue) return Math.max(0, thresholds[0].score);
+    if (rawValue >= maxThreshold.rawValue) return 100;
   } else {
-    if (rawValue <= thresholds[thresholds.length - 1].rawValue) return 100;
-    if (rawValue >= thresholds[0].rawValue) return Math.max(0, thresholds[0].score);
+    if (rawValue <= maxThreshold.rawValue) return 100;
   }
 
-  // Find surrounding thresholds
+  // Handle between thresholds (normal case)
   for (let i = 0; i < thresholds.length - 1; i++) {
     const lower = thresholds[i];
     const upper = thresholds[i + 1];
@@ -107,7 +108,7 @@ function interpolateScore(
       : rawValue <= lower.rawValue && rawValue >= upper.rawValue;
 
     if (inRange) {
-      // Linear interpolation
+      // Linear interpolation between two thresholds
       const rawRange = isAscending
         ? upper.rawValue - lower.rawValue
         : lower.rawValue - upper.rawValue;
@@ -121,7 +122,29 @@ function interpolateScore(
     }
   }
 
-  return 0;
+  // Handle below minimum: interpolate from 0 at a sensible "worst" value
+  // For push-ups: 0 reps → 0 points, 16 reps → 60 points
+  // For times: very long time → 0 points, 1:27 (87 sec) plank → 60 points
+  if (isAscending) {
+    // Push-ups: extrapolate from 0 reps = 0 points to minThreshold
+    const worstValue = 0;
+    const worstScore = 0;
+    const rawRange = minThreshold.rawValue - worstValue;
+    const scoreRange = minThreshold.score - worstScore;
+    const rawOffset = rawValue - worstValue;
+    const t = rawRange > 0 ? rawOffset / rawRange : 0;
+    return Math.max(0, Math.round(worstScore + t * scoreRange));
+  } else {
+    // Times: extrapolate from very long time = 0 points to minThreshold
+    // Use 2x the minimum as "0 score" (reasonable worst case)
+    const worstValue = minThreshold.rawValue * 2;
+    const worstScore = 0;
+    const rawRange = minThreshold.rawValue - worstValue;
+    const scoreRange = minThreshold.score - worstScore;
+    const rawOffset = rawValue - worstValue;
+    const t = rawRange > 0 ? rawOffset / rawRange : 0;
+    return Math.max(0, Math.round(worstScore + t * scoreRange));
+  }
 }
 
 export function eventPoints(
@@ -178,6 +201,7 @@ export function tierOf(
     };
   }
 
+  // Find the next tier (first category with min > current category's max)
   const nextCategory = context.categories.find((c) => c.min > category.max);
   const pointsToNext = nextCategory ? nextCategory.min - score : 0;
 
@@ -210,7 +234,7 @@ export function gapToNextTier(
         ? context.thresholds.plank
         : context.thresholds.row2k;
 
-  const isAscending = eventType === 'pushups';
+  const isAscending = eventType === 'pushups' || eventType === 'plank';
 
   // Find min and max raw values to search
   const minRaw = thresholds[0].rawValue;

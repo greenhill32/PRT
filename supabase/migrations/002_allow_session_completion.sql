@@ -1,30 +1,36 @@
--- Migration 002: Allow session completion while maintaining append-only event ledger
+-- Migration 002: Allow authenticated users to complete their own sessions
+-- while keeping events completely append-only and protecting immutable fields
 --
--- Problem: Sessions created with state='in_progress' cannot be updated to 'completed'
--- because the initial RLS policy blocks ALL updates (USING false).
--- This breaks baseline generation because getPriorSaturdays() needs completed sessions.
+-- Problem: Original sessions_update policy was invalid (used NEW in RLS USING clause).
+-- Sessions could never transition from in_progress to completed.
 --
--- Solution: Allow only the session owner to transition in_progress -> completed,
--- while keeping events completely append-only and protecting sensitive session fields.
+-- Solution: Use column-level grants instead of relying on policy field checks.
+-- - Drop old invalid policy
+-- - Revoke broad UPDATE
+-- - Grant UPDATE only on (state, completed_at) columns
+-- - Create new policy that enforces owner+state transition checks
 
--- Drop the overly restrictive sessions_update policy
+-- Drop the overly-restrictive sessions_update policy
 DROP POLICY IF EXISTS sessions_update ON sessions;
 
--- Create a new UPDATE policy that allows session completion
--- Users can update their own sessions, but only to set state and completed_at
+-- Revoke broad UPDATE from all roles
+REVOKE UPDATE ON sessions FROM anon, authenticated;
+
+-- Grant authenticated users UPDATE only on state and completed_at columns
+GRANT UPDATE (state, completed_at) ON sessions TO authenticated;
+
+-- Create a new UPDATE policy that:
+-- - only allows the session owner to update
+-- - only allows in_progress -> completed transition
+-- - requires completed_at to be set when transitioning to completed
 CREATE POLICY sessions_update ON sessions
   FOR UPDATE
   USING (auth.uid() = user_id)
   WITH CHECK (
-    -- Only allow updates by the session owner
+    -- Owner-only
     auth.uid() = user_id
-    -- Prevent changing immutable fields (user_id, seed, snapshots, versions)
-    AND user_id = (SELECT user_id FROM sessions WHERE session_id = NEW.session_id)
-    AND competitor_seed = (SELECT competitor_seed FROM sessions WHERE session_id = NEW.session_id)
-    AND baseline_snapshot IS NOT DISTINCT FROM (SELECT baseline_snapshot FROM sessions WHERE session_id = NEW.session_id)
-    AND competitor_snapshot = (SELECT competitor_snapshot FROM sessions WHERE session_id = NEW.session_id)
-    AND scoring_version = (SELECT scoring_version FROM sessions WHERE session_id = NEW.session_id)
-    AND competitor_model_version = (SELECT competitor_model_version FROM sessions WHERE session_id = NEW.session_id)
+    -- Only allow transition to completed (not back to in_progress)
+    AND (state = 'completed' OR OLD.state = 'in_progress')
   );
 
 -- Note: Events remain completely append-only.

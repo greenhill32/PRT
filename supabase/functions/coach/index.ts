@@ -92,16 +92,16 @@ function eventPoints(
   };
 
   const t = thresholds[eventType] || [];
-  const isAscending = eventType === 'pushups';
+  const isAscending = eventType === 'pushups' || eventType === 'plank';
 
+  // Handle above maximum
   if (isAscending) {
     if (rawValue >= t[t.length - 1][0]) return 100;
-    if (rawValue <= t[0][0]) return Math.max(0, t[0][1]);
   } else {
     if (rawValue <= t[t.length - 1][0]) return 100;
-    if (rawValue >= t[0][0]) return Math.max(0, t[0][1]);
   }
 
+  // Find between thresholds (normal case)
   for (let i = 0; i < t.length - 1; i++) {
     const lower = t[i];
     const upper = t[i + 1];
@@ -124,7 +124,26 @@ function eventPoints(
     }
   }
 
-  return 0;
+  // Handle below minimum: interpolate from 0
+  if (isAscending) {
+    // Push-ups: extrapolate from 0 reps = 0 points
+    const worstValue = 0;
+    const worstScore = 0;
+    const rawRange = t[0][0] - worstValue;
+    const scoreRange = t[0][1] - worstScore;
+    const rawOffset = rawValue - worstValue;
+    const ratio = rawRange > 0 ? rawOffset / rawRange : 0;
+    return Math.max(0, Math.round(worstScore + ratio * scoreRange));
+  } else {
+    // Times: extrapolate from very long time = 0 points
+    const worstValue = t[0][0] * 2;
+    const worstScore = 0;
+    const rawRange = t[0][0] - worstValue;
+    const scoreRange = t[0][1] - worstScore;
+    const rawOffset = rawValue - worstValue;
+    const ratio = rawRange > 0 ? rawOffset / rawRange : 0;
+    return Math.max(0, Math.round(worstScore + ratio * scoreRange));
+  }
 }
 
 // Build coach context from session state

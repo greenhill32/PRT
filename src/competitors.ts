@@ -51,29 +51,29 @@ function median(values: number[]): number {
     : sorted[mid];
 }
 
-// Generate baseline from prior sessions
-export function generateBaseline(priorSessions: any[]): BaselineSnapshot {
-  if (priorSessions.length < 3) {
+// Generate baseline from effective results of prior sessions
+export function generateBaseline(
+  priorResults: Array<{ pushups?: number; plank?: number; row_2k?: number }>
+): BaselineSnapshot {
+  if (priorResults.length === 0) {
     return defaultBaseline();
   }
 
-  // For each event type, get the last 3-5 completed sessions and calculate median
+  // For each event type, collect values from prior sessions and calculate median
   const pushups = [];
   const plank = [];
   const row = [];
 
-  for (const session of priorSessions.slice(0, 5)) {
-    // Reconstruct event results from ledger (simplified - in real app, query events table)
-    // For now, assume we have cached results
-    if (session.last_pushups) pushups.push(session.last_pushups);
-    if (session.last_plank) plank.push(session.last_plank);
-    if (session.last_row) row.push(session.last_row);
+  for (const result of priorResults) {
+    if (result.pushups !== undefined && result.pushups > 0) pushups.push(result.pushups);
+    if (result.plank !== undefined && result.plank > 0) plank.push(result.plank);
+    if (result.row_2k !== undefined && result.row_2k > 0) row.push(result.row_2k);
   }
 
   return {
-    pushups_median: median(pushups) || defaultBaseline().pushups_median,
-    plank_median_sec: median(plank) || defaultBaseline().plank_median_sec,
-    row_median_sec: median(row) || defaultBaseline().row_median_sec
+    pushups_median: pushups.length > 0 ? median(pushups) : defaultBaseline().pushups_median,
+    plank_median_sec: plank.length > 0 ? median(plank) : defaultBaseline().plank_median_sec,
+    row_median_sec: row.length > 0 ? median(row) : defaultBaseline().row_median_sec
   };
 }
 
@@ -105,9 +105,14 @@ export function generateCompetitors(
     const form = (prng.next() - 0.5) * 2 * persona.form_variance;
 
     // Generate results for each event
+    // For push-ups (more is better): multiply upward
     const pushups_base = baseline.pushups_median * persona.ability_offset;
-    const plank_base = baseline.plank_median_sec * persona.ability_offset;
-    const row_base = baseline.row_median_sec * persona.ability_offset;
+
+    // For times (less is better): invert the multiplier
+    // ability_offset > 1 means stronger, which means lower time
+    const ability_inverse = 1 / persona.ability_offset;
+    const plank_base = baseline.plank_median_sec * ability_inverse;
+    const row_base = baseline.row_median_sec * ability_inverse;
 
     // Push-ups: bounded count, use linear adjustment
     const pushups_noise = (prng.next() - 0.5) * 2 * persona.noise_variance;

@@ -28,9 +28,13 @@ describe('Scoring Module', () => {
       expect(eventPoints('pushups', 100, ctx)).toBe(100);
     });
 
-    it('scores below minimum', () => {
-      const score = eventPoints('pushups', 0, ctx);
-      expect(score).toBeLessThanOrEqual(60);
+    it('scores below minimum (interpolates toward 0)', () => {
+      const score0 = eventPoints('pushups', 0, ctx);
+      const score8 = eventPoints('pushups', 8, ctx);
+      expect(score0).toBeLessThanOrEqual(60);
+      expect(score0).toBeGreaterThanOrEqual(0);
+      expect(score8).toBeGreaterThan(score0);
+      expect(score8).toBeLessThan(60);
     });
   });
 
@@ -119,13 +123,15 @@ describe('Scoring Module', () => {
     it('categorizes Good (70-84)', () => {
       const tier = tierOf(70, ctx);
       expect(tier.category).toBe('Good');
-      expect(tier.pointsToNext).toBe(30); // to reach 100 (Outstanding)
+      expect(tier.pointsToNext).toBe(15); // to reach 85 (Excellent)
+      expect(tier.nextCategory).toBe('Excellent');
     });
 
     it('categorizes Satisfactory (60-69)', () => {
       const tier = tierOf(65, ctx);
       expect(tier.category).toBe('Satisfactory');
-      expect(tier.pointsToNext).toBe(35); // to reach 100 (Outstanding)
+      expect(tier.pointsToNext).toBe(5); // to reach 70 (Good)
+      expect(tier.nextCategory).toBe('Good');
     });
 
     it('categorizes Does Not Meet Standards (< 60)', () => {
@@ -135,10 +141,10 @@ describe('Scoring Module', () => {
   });
 
   describe('gapToNextTier', () => {
-    it('calculates points and raw value needed from Good to Outstanding', () => {
+    it('calculates points and raw value needed from Good to Excellent', () => {
       const result = gapToNextTier(70, 'pushups', ctx);
-      expect(result.pointGap).toBe(30); // 70 + 30 = 100
-      expect(result.rawValueNeeded).toBeGreaterThan(48); // Need more push-ups
+      expect(result.pointGap).toBe(15); // 70 + 15 = 85
+      expect(result.rawValueNeeded).toBeGreaterThan(38); // Need more push-ups than 38
     });
 
     it('returns 0 gap at Outstanding (max tier)', () => {
@@ -147,15 +153,15 @@ describe('Scoring Module', () => {
     });
 
     it('estimates raw value correctly for different events', () => {
-      // From score 70 in each event, what raw value gets to 100?
+      // From score 70 in each event, what raw value gets to next tier (85)?
       const pushupGap = gapToNextTier(70, 'pushups', ctx);
       const plankGap = gapToNextTier(70, 'plank', ctx);
       const rowGap = gapToNextTier(70, 'row_2k', ctx);
 
-      // All should need 30 points to reach Outstanding
-      expect(pushupGap.pointGap).toBe(30);
-      expect(plankGap.pointGap).toBe(30);
-      expect(rowGap.pointGap).toBe(30);
+      // All should need 15 points to reach Excellent (85)
+      expect(pushupGap.pointGap).toBe(15);
+      expect(plankGap.pointGap).toBe(15);
+      expect(rowGap.pointGap).toBe(15);
 
       // Raw values should be different by event
       expect(pushupGap.rawValueNeeded).toBeGreaterThan(0);

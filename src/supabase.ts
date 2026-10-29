@@ -56,12 +56,15 @@ export async function updateSessionState(
   session_id: string,
   state: 'in_progress' | 'completed'
 ): Promise<void> {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('sessions')
     .update({ state, completed_at: state === 'completed' ? new Date().toISOString() : null })
-    .eq('session_id', session_id);
+    .eq('session_id', session_id)
+    .select()
+    .single();
 
   if (error) throw error;
+  if (!data) throw new Error('Session update failed: RLS blocked the update or session not found');
 }
 
 export async function getUserSessions(limit: number = 10): Promise<Session[]> {
@@ -99,7 +102,7 @@ export async function getSessionEvents(session_id: string): Promise<Event[]> {
   return data || [];
 }
 
-// Compute effective results from ledger
+// Compute effective results from ledger (raw values)
 export async function getEffectiveResults(session_id: string): Promise<{
   pushups?: number;
   plank?: number;
@@ -107,12 +110,21 @@ export async function getEffectiveResults(session_id: string): Promise<{
   bike?: number;
 }> {
   const events = await getSessionEvents(session_id);
+  return computeEffectiveResultsFromEvents(events);
+}
 
+// Helper: compute effective results from event array
+export function computeEffectiveResultsFromEvents(events: Event[]): {
+  pushups?: number;
+  plank?: number;
+  row_2k?: number;
+  bike?: number;
+} {
   const results: any = {};
   const eventTypes = ['pushups', 'plank', 'row_2k', 'bike'];
 
   for (const eventType of eventTypes) {
-    // Get all non-void events of this type, sorted by creation time
+    // Get all non-void events of this type, sorted by creation time descending
     const relevantEvents = events
       .filter((e) => e.event_type === eventType && e.event_type !== 'void')
       .sort(
@@ -120,7 +132,7 @@ export async function getEffectiveResults(session_id: string): Promise<{
           new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       );
 
-    // Skip if voided
+    // Find the latest non-voided event
     for (const evt of relevantEvents) {
       const isVoided = events.some((e) => e.voids_event_id === evt.event_id);
       if (!isVoided && evt.raw_value !== null) {
