@@ -375,21 +375,22 @@ serve(async (req: Request) => {
       {
         headers: {
           'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*'
+          'Access-Control-Allow-Origin': 'https://prt-brown-eta.vercel.app'
         }
       }
     );
   } catch (error) {
     console.error('Coach function error:', error);
+    // Do not expose internal error details to client
     return new Response(
       JSON.stringify({
-        error: error instanceof Error ? error.message : 'Internal server error'
+        error: 'Unable to provide coaching at this time'
       }),
       {
         status: 500,
         headers: {
           'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*'
+          'Access-Control-Allow-Origin': 'https://prt-brown-eta.vercel.app'
         }
       }
     );

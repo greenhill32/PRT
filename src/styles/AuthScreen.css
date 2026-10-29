@@ -10,12 +10,20 @@
 }
 
 .auth-card {
-  background: white;
+  background: var(--bg);
+  color: var(--text);
   border-radius: 16px;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
   padding: 24px;
   max-width: 420px;
   width: 100%;
+}
+
+@media (prefers-color-scheme: light) {
+  .auth-card {
+    background: white;
+    color: #172033;
+  }
 }
 
 .auth-card h1 {
@@ -48,6 +56,8 @@
   font-weight: 500;
   color: var(--text);
   font-size: 14px;
+  display: block;
+  margin-bottom: 6px;
 }
 
 .form-group input {
