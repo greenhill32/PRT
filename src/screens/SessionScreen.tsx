@@ -80,14 +80,31 @@ export default function SessionScreen({ sessionId, onEndSession }: SessionScreen
     }
   };
 
+  const parseTimeInput = (input: string, eventType: EventType): number => {
+    const trimmed = input.trim();
+
+    // If it contains a colon, parse as mm:ss
+    if (trimmed.includes(':')) {
+      const parts = trimmed.split(':');
+      if (parts.length === 2) {
+        const minutes = parseInt(parts[0], 10);
+        const seconds = parseInt(parts[1], 10);
+        if (!isNaN(minutes) && !isNaN(seconds)) {
+          return minutes * 60 + seconds;
+        }
+      }
+    }
+
+    // Otherwise parse as raw seconds or reps
+    return parseInt(trimmed, 10);
+  };
+
   const handleConfirmEvent = async () => {
     if (!inputValue || !session) return;
 
     setConfirming(true);
     try {
-      const rawValue = currentEvent === 'plank' || currentEvent === 'row_2k'
-        ? parseInt(inputValue)
-        : parseInt(inputValue);
+      const rawValue = parseTimeInput(inputValue, currentEvent);
 
       const event_id = uuidv4();
       const timestamp = new Date().toISOString();
@@ -201,16 +218,19 @@ export default function SessionScreen({ sessionId, onEndSession }: SessionScreen
           <section className="entry-panel">
             <h3>Enter {currentEvent.replace('_', ' ')}</h3>
             <input
-              type="number"
+              type="text"
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               placeholder={
                 currentEvent === 'pushups'
-                  ? 'Number of reps'
-                  : 'Seconds'
+                  ? 'e.g., 38'
+                  : currentEvent === 'plank'
+                  ? 'e.g., 2:02 or 122'
+                  : 'e.g., 8:50 or 530'
               }
               disabled={confirming}
               autoFocus
+              inputMode={currentEvent === 'pushups' ? 'numeric' : 'decimal'}
             />
             <button
               onClick={handleConfirmEvent}
