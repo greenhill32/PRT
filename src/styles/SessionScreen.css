@@ -1,155 +1,236 @@
 .session-screen {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  min-height: 100dvh;
+  background: var(--bg);
 }
 
+/* ===== HEADER ===== */
 .session-header {
   background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
   color: white;
-  padding: 16px 20px;
+  padding: 12px 16px;
+  padding-top: max(12px, env(safe-area-inset-top));
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-shrink: 0;
+  gap: 12px;
 }
 
 .session-header h1 {
   margin: 0;
-  font-size: 22px;
+  font-size: 18px;
+  flex: 1;
 }
 
 .session-status {
   display: flex;
-  gap: 12px;
+  gap: 8px;
   align-items: center;
 }
 
 .queued-badge {
   background: rgba(255, 255, 255, 0.2);
   border: 1px solid rgba(255, 255, 255, 0.4);
-  border-radius: 20px;
-  padding: 4px 12px;
-  font-size: 12px;
+  border-radius: 16px;
+  padding: 4px 10px;
+  font-size: 11px;
   font-weight: 500;
+  white-space: nowrap;
 }
 
+.session-header button {
+  padding: 8px 12px;
+  font-size: 13px;
+  min-height: auto;
+}
+
+/* ===== MAIN CONTENT (MOBILE FIRST) ===== */
 .session-main {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
-  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 12px 16px;
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
   overflow-y: auto;
   flex: 1;
-  max-width: 1200px;
-  margin: 0 auto;
-  width: 100%;
 }
 
 .session-left,
 .session-right {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
 }
 
+/* ===== ENTRY PANEL (PROMINENT ON MOBILE) ===== */
 .entry-panel {
   background: var(--bg-alt);
   border-radius: 12px;
-  padding: 20px;
+  padding: 16px;
+  order: 1;
 }
 
 .entry-panel h3 {
-  margin-bottom: 16px;
-  font-size: 18px;
+  margin: 0 0 12px 0;
+  font-size: 16px;
+  color: var(--text);
 }
 
 .entry-panel input {
-  font-size: 18px;
-  padding: 12px;
+  width: 100%;
+  font-size: 16px;
+  padding: 14px;
   margin-bottom: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background-color: var(--bg);
+  color: var(--text);
 }
 
 .entry-panel button {
   width: 100%;
-  padding: 14px;
+  padding: 16px;
   font-size: 16px;
+  font-weight: 600;
+  min-height: 52px;
+  background-color: var(--primary);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
 }
 
+.entry-panel button:hover:not(:disabled) {
+  background-color: var(--primary-dark);
+  transform: translateY(-1px);
+}
+
+.entry-panel button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ===== SCORE DISPLAY ===== */
 .score-display {
   background: var(--bg-alt);
   border-radius: 12px;
-  padding: 20px;
+  padding: 16px;
   text-align: center;
+  order: 2;
 }
 
 .score-display h3 {
-  margin-bottom: 16px;
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  color: var(--text-light);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .score-large {
   font-size: 48px;
   font-weight: 700;
   color: var(--primary);
-  margin: 10px 0;
+  margin: 8px 0;
+  line-height: 1;
 }
 
 .score-category {
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 600;
-  margin-bottom: 8px;
+  color: var(--text);
+  margin: 8px 0 4px 0;
 }
 
 .score-gap {
-  font-size: 14px;
+  font-size: 13px;
   color: var(--text-light);
 }
 
+/* ===== LEADERBOARD (MOBILE CARDS) ===== */
 .leaderboard-section {
   background: var(--bg-alt);
   border-radius: 12px;
-  padding: 20px;
+  padding: 16px;
+  order: 3;
   flex: 1;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
 }
 
 .leaderboard-section h3 {
-  margin-bottom: 16px;
+  margin: 0 0 12px 0;
+  font-size: 16px;
+  color: var(--text);
 }
 
 .leaderboard {
-  font-size: 12px;
+  width: 100%;
+  border-collapse: collapse;
+  flex: 1;
 }
 
-.leaderboard th {
-  padding: 8px 6px;
-  font-size: 11px;
+.leaderboard thead {
+  display: none;
+}
+
+.leaderboard tbody {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.leaderboard tr {
+  display: grid;
+  grid-template-columns: 30px 1fr 50px;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  background: var(--bg);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.leaderboard tr.user-row {
+  background: rgba(59, 130, 246, 0.08);
+  border-color: var(--primary);
+  font-weight: 600;
 }
 
 .leaderboard td {
-  padding: 8px 6px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  padding: 0;
+  border: none;
+  font-size: 15px;
+  color: var(--text);
 }
 
-.leaderboard .user-row {
+.leaderboard td:first-child {
+  text-align: center;
   font-weight: 600;
-  background: rgba(59, 130, 246, 0.1);
+  color: var(--text-light);
 }
 
-.leaderboard .overall-score {
+.leaderboard td:last-child {
+  text-align: right;
   font-weight: 700;
   color: var(--primary);
 }
 
+/* ===== COACH (SECONDARY, COLLAPSIBLE ON MOBILE) ===== */
 .coach-section {
   background: var(--bg-alt);
   border-radius: 12px;
-  padding: 20px;
+  padding: 16px;
+  order: 4;
 }
 
 .coach-section h3 {
-  margin-bottom: 16px;
+  margin: 0 0 12px 0;
+  font-size: 16px;
+  color: var(--text);
 }
 
 .coach-buttons {
@@ -160,25 +241,47 @@
 
 .coach-buttons button {
   flex: 1;
-  padding: 10px;
-  font-size: 13px;
+  padding: 12px;
+  font-size: 14px;
+  min-height: 44px;
+  background-color: var(--border);
+  color: var(--text);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.coach-buttons button:hover {
+  background-color: var(--secondary);
+  color: white;
 }
 
 .coach-input-group {
   display: flex;
+  flex-direction: column;
   gap: 8px;
   margin-bottom: 12px;
 }
 
 .coach-input-group input {
-  flex: 1;
-  font-size: 13px;
-  padding: 10px;
+  font-size: 16px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background-color: var(--bg);
+  color: var(--text);
 }
 
 .coach-input-group button {
-  padding: 10px 16px;
-  font-size: 13px;
+  padding: 12px;
+  font-size: 14px;
+  min-height: 44px;
+  background-color: var(--primary);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
 }
 
 .coach-response {
@@ -186,221 +289,198 @@
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 12px;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.6;
   color: var(--text);
-  max-height: 200px;
+  max-height: 180px;
   overflow-y: auto;
 }
 
-@media (max-width: 900px) {
-  .session-main {
-    grid-template-columns: 1fr;
-    gap: 16px;
-    padding: 16px;
-  }
-
-  .entry-panel {
-    padding: 16px;
-  }
-
-  .entry-panel h3 {
-    font-size: 16px;
-  }
-
-  .score-large {
-    font-size: 40px;
-  }
-}
-
-@media (max-width: 768px) {
+/* ===== TABLET (768px) ===== */
+@media (min-width: 641px) and (max-width: 900px) {
   .session-header {
-    padding: 12px 16px;
+    padding: 14px 20px;
   }
 
   .session-header h1 {
+    font-size: 20px;
+  }
+
+  .session-main {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 16px 20px;
+    gap: 20px;
+  }
+
+  .entry-panel {
+    padding: 18px;
+  }
+
+  .entry-panel h3 {
+    font-size: 17px;
+  }
+
+  .score-large {
+    font-size: 44px;
+  }
+
+  .leaderboard-section {
+    padding: 18px;
+  }
+
+  .leaderboard tr {
+    padding: 14px;
+    font-size: 15px;
+  }
+
+  .coach-section {
+    padding: 18px;
+  }
+}
+
+/* ===== DESKTOP (900px+) ===== */
+@media (min-width: 901px) {
+  .session-main {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    padding: 20px;
+    max-width: 1200px;
+    margin: 0 auto;
+    width: 100%;
+  }
+
+  .session-left {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .session-right {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .entry-panel {
+    padding: 20px;
+    order: auto;
+  }
+
+  .entry-panel h3 {
+    margin-bottom: 16px;
     font-size: 18px;
   }
 
-  .session-main {
+  .entry-panel input {
+    font-size: 18px;
     padding: 12px;
-  }
-
-  .entry-panel {
-    padding: 14px;
-  }
-
-  .entry-panel h3 {
-    font-size: 15px;
     margin-bottom: 12px;
   }
 
-  .entry-panel input {
-    font-size: 16px;
-    padding: 10px;
-    margin-bottom: 10px;
-  }
-
   .entry-panel button {
-    padding: 12px;
-    font-size: 14px;
+    padding: 14px;
+    font-size: 16px;
   }
 
   .score-display {
-    padding: 16px;
+    padding: 20px;
+    order: auto;
   }
 
   .score-large {
-    font-size: 36px;
-  }
-
-  .leaderboard-section {
-    padding: 14px;
-  }
-
-  .leaderboard-section h3 {
-    font-size: 14px;
-    margin-bottom: 12px;
-  }
-
-  .coach-section {
-    padding: 14px;
-  }
-
-  .coach-section h3 {
-    font-size: 14px;
-  }
-}
-
-@media (max-width: 640px) {
-  .session-header {
-    flex-direction: column;
-    gap: 8px;
-    align-items: flex-start;
-    padding: 12px;
-  }
-
-  .session-header h1 {
-    font-size: 16px;
-  }
-
-  .session-status {
-    flex-direction: row;
-    width: 100%;
-    justify-content: space-between;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .session-main {
-    padding: 8px;
-    gap: 12px;
-  }
-
-  .entry-panel {
-    padding: 12px;
-  }
-
-  .entry-panel h3 {
-    font-size: 14px;
-    margin-bottom: 10px;
-  }
-
-  .entry-panel input {
-    font-size: 16px;
-    padding: 10px;
-    margin-bottom: 8px;
-  }
-
-  .entry-panel button {
-    padding: 12px;
-    font-size: 14px;
-    min-height: 44px;
-  }
-
-  .score-display {
-    padding: 12px;
-  }
-
-  .score-display h3 {
-    font-size: 13px;
-  }
-
-  .score-large {
-    font-size: 32px;
-    margin: 8px 0;
+    font-size: 52px;
   }
 
   .score-category {
-    font-size: 14px;
-  }
-
-  .score-gap {
-    font-size: 12px;
-  }
-
-  .leaderboard {
-    font-size: 10px;
-  }
-
-  .leaderboard th {
-    padding: 6px 4px;
-    font-size: 9px;
-  }
-
-  .leaderboard td {
-    padding: 6px 4px;
-    font-size: 9px;
+    font-size: 18px;
   }
 
   .leaderboard-section {
-    padding: 12px;
+    padding: 20px;
+    order: auto;
   }
 
   .leaderboard-section h3 {
+    margin-bottom: 16px;
+    font-size: 18px;
+  }
+
+  .leaderboard thead {
+    display: table-header-group;
+  }
+
+  .leaderboard tbody {
+    display: table-row-group;
+    gap: 0;
+  }
+
+  .leaderboard tr {
+    display: table-row;
+    grid-template-columns: auto;
+    gap: 0;
+    padding: 0;
+    background: none;
+    border: none;
+    border-radius: 0;
+  }
+
+  .leaderboard tr.user-row {
+    background: rgba(59, 130, 246, 0.1);
+    border: none;
+  }
+
+  .leaderboard th {
+    text-align: left;
+    padding: 10px 8px;
+    border-bottom: 2px solid var(--border);
+    font-weight: 600;
+    color: var(--text-light);
+    font-size: 12px;
+  }
+
+  .leaderboard td {
+    padding: 10px 8px;
+    border-bottom: 1px solid var(--border);
     font-size: 13px;
+    text-align: left;
+  }
+
+  .leaderboard td:first-child {
+    text-align: left;
+    font-weight: normal;
+    color: var(--text);
+  }
+
+  .leaderboard td:last-child {
+    text-align: right;
+    font-weight: 700;
+    color: var(--primary);
   }
 
   .coach-section {
-    padding: 12px;
+    padding: 20px;
+    order: auto;
   }
 
   .coach-section h3 {
-    font-size: 13px;
-    margin-bottom: 10px;
-  }
-
-  .coach-buttons {
-    gap: 6px;
-    margin-bottom: 10px;
-  }
-
-  .coach-buttons button {
-    padding: 10px;
-    font-size: 12px;
-    min-height: 40px;
+    margin-bottom: 16px;
+    font-size: 18px;
   }
 
   .coach-input-group {
-    gap: 6px;
-    margin-bottom: 10px;
-    flex-direction: column;
+    display: flex;
+    flex-direction: row;
+    gap: 8px;
+    margin-bottom: 12px;
   }
 
   .coach-input-group input {
-    font-size: 14px;
-    padding: 10px;
+    flex: 1;
   }
 
   .coach-input-group button {
-    padding: 10px;
-    font-size: 12px;
-    min-height: 40px;
-  }
-
-  .coach-response {
-    font-size: 12px;
-    padding: 10px;
-    max-height: 150px;
+    padding: 10px 16px;
   }
 }
