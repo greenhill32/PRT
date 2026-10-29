@@ -17,10 +17,14 @@ export async function createSession(
   baseline_snapshot: any,
   competitor_snapshot: any
 ): Promise<Session> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('User not authenticated');
+
   const { data, error } = await supabase
     .from('sessions')
     .insert([
       {
+        user_id: user.id,
         kind,
         state: 'in_progress',
         scoring_version: '1.0',
