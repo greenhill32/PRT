@@ -291,6 +291,7 @@ supabase/
 
 | Commit | What Changed |
 |--------|--------------|
+| *(latest)* | **Fix session completion lifecycle** (migration 002: allow session UPDATE for completion while keeping events append-only) |
 | `51093dd` | iPhone-first layout redesign (card leaderboard, safe-area, vertical stack) |
 | `76b30b8` | Remove compiled .js files from tracking |
 | `5241ba5` | Time input: accept "2:02" or "122" format |
@@ -332,7 +333,7 @@ supabase/
 
 ## Known Limitations
 
-- **User limit:** Single user (you). Multi-user requires per-user RLS policies + team logic.
+- **Sharing:** Designed as a personal app. Authentication and RLS isolate each user completely via Row Level Security. There are no shared leaderboards, friends, teams, or cross-user competition features. Each user has independent sessions, baselines, and competitors.
 - **Events:** Only 3 events per session (push-ups, plank, row). Adding more requires schema + UI changes.
 - **Competitors:** Fixed 5 archetypes (Peer, Steady, Volatile, Rival, Ghost You). Customization needs seeding logic.
 - **Coach:** Optional. Requires ANTHROPIC_API_KEY. No conversation history (stateless).
