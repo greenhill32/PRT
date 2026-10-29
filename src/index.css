@@ -123,6 +123,12 @@ h1 { font-size: 28px; }
 h2 { font-size: 22px; }
 h3 { font-size: 18px; }
 
+@media (max-width: 640px) {
+  h1 { font-size: 24px; }
+  h2 { font-size: 18px; }
+  h3 { font-size: 16px; }
+}
+
 .error-message {
   color: var(--danger);
   font-size: 14px;

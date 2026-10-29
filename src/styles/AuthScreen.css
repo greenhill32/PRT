@@ -68,3 +68,70 @@
 .auth-toggle button {
   margin-left: 4px;
 }
+
+@media (max-width: 768px) {
+  .auth-card {
+    padding: 32px;
+    border-radius: 8px;
+  }
+
+  .auth-card h1 {
+    font-size: 24px;
+  }
+
+  .auth-card p {
+    margin-bottom: 24px;
+  }
+
+  .auth-card form {
+    gap: 14px;
+  }
+
+  .auth-card button[type='submit'] {
+    padding: 12px;
+    font-size: 15px;
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 640px) {
+  .auth-screen {
+    padding: 12px;
+  }
+
+  .auth-card {
+    padding: 20px;
+    border-radius: 8px;
+  }
+
+  .auth-card h1 {
+    font-size: 20px;
+    margin-bottom: 6px;
+  }
+
+  .auth-card p {
+    margin-bottom: 20px;
+    font-size: 13px;
+  }
+
+  .auth-card form {
+    gap: 12px;
+  }
+
+  .form-group input {
+    padding: 12px;
+    font-size: 16px;
+  }
+
+  .auth-card button[type='submit'] {
+    margin-top: 6px;
+    padding: 12px;
+    font-size: 14px;
+    min-height: 44px;
+  }
+
+  .auth-toggle {
+    margin-top: 16px;
+    font-size: 13px;
+  }
+}

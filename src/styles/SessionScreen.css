@@ -196,28 +196,211 @@
 @media (max-width: 900px) {
   .session-main {
     grid-template-columns: 1fr;
+    gap: 16px;
+    padding: 16px;
+  }
+
+  .entry-panel {
+    padding: 16px;
+  }
+
+  .entry-panel h3 {
+    font-size: 16px;
+  }
+
+  .score-large {
+    font-size: 40px;
+  }
+}
+
+@media (max-width: 768px) {
+  .session-header {
+    padding: 12px 16px;
+  }
+
+  .session-header h1 {
+    font-size: 18px;
+  }
+
+  .session-main {
+    padding: 12px;
+  }
+
+  .entry-panel {
+    padding: 14px;
+  }
+
+  .entry-panel h3 {
+    font-size: 15px;
+    margin-bottom: 12px;
+  }
+
+  .entry-panel input {
+    font-size: 16px;
+    padding: 10px;
+    margin-bottom: 10px;
+  }
+
+  .entry-panel button {
+    padding: 12px;
+    font-size: 14px;
+  }
+
+  .score-display {
+    padding: 16px;
+  }
+
+  .score-large {
+    font-size: 36px;
+  }
+
+  .leaderboard-section {
+    padding: 14px;
+  }
+
+  .leaderboard-section h3 {
+    font-size: 14px;
+    margin-bottom: 12px;
+  }
+
+  .coach-section {
+    padding: 14px;
+  }
+
+  .coach-section h3 {
+    font-size: 14px;
   }
 }
 
 @media (max-width: 640px) {
   .session-header {
     flex-direction: column;
-    gap: 12px;
+    gap: 8px;
     align-items: flex-start;
+    padding: 12px;
+  }
+
+  .session-header h1 {
+    font-size: 16px;
   }
 
   .session-status {
-    flex-direction: column;
+    flex-direction: row;
     width: 100%;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .session-main {
+    padding: 8px;
+    gap: 12px;
+  }
+
+  .entry-panel {
+    padding: 12px;
+  }
+
+  .entry-panel h3 {
+    font-size: 14px;
+    margin-bottom: 10px;
+  }
+
+  .entry-panel input {
+    font-size: 16px;
+    padding: 10px;
+    margin-bottom: 8px;
+  }
+
+  .entry-panel button {
+    padding: 12px;
+    font-size: 14px;
+    min-height: 44px;
+  }
+
+  .score-display {
+    padding: 12px;
+  }
+
+  .score-display h3 {
+    font-size: 13px;
+  }
+
+  .score-large {
+    font-size: 32px;
+    margin: 8px 0;
+  }
+
+  .score-category {
+    font-size: 14px;
+  }
+
+  .score-gap {
+    font-size: 12px;
   }
 
   .leaderboard {
-    font-size: 11px;
+    font-size: 10px;
   }
 
-  .leaderboard th,
+  .leaderboard th {
+    padding: 6px 4px;
+    font-size: 9px;
+  }
+
   .leaderboard td {
     padding: 6px 4px;
-    font-size: 10px;
+    font-size: 9px;
+  }
+
+  .leaderboard-section {
+    padding: 12px;
+  }
+
+  .leaderboard-section h3 {
+    font-size: 13px;
+  }
+
+  .coach-section {
+    padding: 12px;
+  }
+
+  .coach-section h3 {
+    font-size: 13px;
+    margin-bottom: 10px;
+  }
+
+  .coach-buttons {
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+
+  .coach-buttons button {
+    padding: 10px;
+    font-size: 12px;
+    min-height: 40px;
+  }
+
+  .coach-input-group {
+    gap: 6px;
+    margin-bottom: 10px;
+    flex-direction: column;
+  }
+
+  .coach-input-group input {
+    font-size: 14px;
+    padding: 10px;
+  }
+
+  .coach-input-group button {
+    padding: 10px;
+    font-size: 12px;
+    min-height: 40px;
+  }
+
+  .coach-response {
+    font-size: 12px;
+    padding: 10px;
+    max-height: 150px;
   }
 }
