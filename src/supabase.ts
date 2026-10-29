@@ -140,6 +140,16 @@ export async function getCurrentUser() {
   const { data: { session } } = await supabase.auth.getSession();
   return session?.user ?? null;
 }
+
+export async function deleteSession(session_id: string): Promise<void> {
+  const { error } = await supabase
+    .from('sessions')
+    .delete()
+    .eq('session_id', session_id);
+
+  if (error) throw error;
+}
+
 export function onAuthStateChange(callback: (user: any) => void) {
   return supabase.auth.onAuthStateChange((_event, session) => callback(session?.user || null));
 }

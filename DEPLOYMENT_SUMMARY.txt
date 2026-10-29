@@ -1,0 +1,134 @@
+================================================================================
+                    PRT DEPLOYMENT HANDOFF SUMMARY
+================================================================================
+
+Commit:       9c2dcfa (Merge: PRT correctness recovery PR)
+Date:         2026-10-29
+Tests:        65/65 PASS ✓
+Build:        Successful ✓ (396.80 kB JS gzip: 113.19 kB)
+Status:       Ready for deployment
+
+================================================================================
+WHAT WAS DEPLOYED (Code side)
+================================================================================
+
+1. CORRECTNESS FIXES (from PASS 1 + Codex)
+   ✓ Migration 002 corrected: RLS policy for session completion
+   ✓ Migration 003 added: Forward repair for existing deployments
+   ✓ Scoring: Below-minimum interpolation (no more 60-point floor)
+   ✓ Baseline: Computed from real session events, not nonexistent fields
+   ✓ Rival: Stronger now means faster times (not slower)
+   ✓ Next-tier: Good→Excellent (was Good→Outstanding)
+   ✓ Coach: Uses shared scoring, matches client logic
+
+2. RELIABILITY FIXES (from PASS 2 + Codex)
+   ✓ Input validation: Rejects NaN, empty, negative, absurd values
+   ✓ Immediate sync: Triggers after event confirmation
+   ✓ Retry logic: Failed syncs now retried on reconnect
+   ✓ Session restore: Reload reconstructs state from server + queue
+   ✓ Reopen sessions: Click in-progress to resume
+   ✓ Save/complete: Flushes pending sync before completing
+
+3. POLISH/SECURITY FIXES (from PASS 3 + Codex)
+   ✓ iPhone: viewport-fit=cover, safe-area padding, PWA icons
+   ✓ Dark mode: Auth card uses theme colors
+   ✓ Coach: Safe error messages, CORS restricted to origin
+   ✓ TypeScript: noEmit prevents stray .js files
+   ✓ PWA: Icons supplied (192px, 512px, SVG)
+
+================================================================================
+REMAINING DEPLOYMENT WORK (Your environment)
+================================================================================
+
+A. DATABASE MIGRATIONS
+   Apply to Supabase project:
+   - If migration 002 already recorded: Run 003 only
+   - If migration 002 NOT recorded: Run 002, then 003
+   - NEVER rerun migration 001 (creates tables)
+   
+   What they do:
+   - Allows authenticated users to complete in_progress sessions
+   - Requires 3 persisted non-voided results before completion
+   - Prevents reopening/modifying completed sessions
+   - No existing data is modified or deleted
+
+B. COACH EDGE FUNCTION REDEPLOY
+   Requires in Supabase:
+   - ANTHROPIC_API_KEY (in Secrets, not Git)
+   - ANTHROPIC_MODEL (optional, default: claude-3-5-sonnet-20241022)
+   - COACH_ALLOWED_ORIGINS (optional, default: https://prt-brown-eta.vercel.app)
+   
+   Command:
+   supabase functions deploy coach --project-id <PROJECT_ID>
+
+C. FRONTEND REDEPLOY (Vercel)
+   - Push to main auto-triggers redeploy (if webhook connected)
+   - Or manually trigger in Vercel dashboard
+   - Verify: PWA icons exist, safe areas applied, 10 entries precached
+
+================================================================================
+LIVE VERIFICATION CHECKLIST
+================================================================================
+
+SCORING (No manual db changes)
+  [ ] 38 push-ups, 2:02 plank, 8:50 row = 70/70/70 overall score
+  [ ] 9:31 row (invalid) scores proportionally, not zero
+  [ ] Zero events count equally in user + opponent averages
+
+OFFLINE RECOVERY
+  [ ] Start session, confirm event, lose connection
+  [ ] Reload → score/reveals/input stage recover
+  [ ] Log event offline, reconnect → all UUIDs upload once
+
+UPLOAD RESILIENCE
+  [ ] Interrupt upload → retries on next sync
+  [ ] Failed upload → badge visible, Save blocked until persisted
+
+SESSION COMPLETION
+  [ ] All 3 events logged → Save enabled
+  [ ] Complete → state='completed', completed_at in Supabase
+  [ ] Immutable fields unchanged (user_id, competitor_seed, snapshots)
+  [ ] Cannot reopen completed session
+
+POST-COMPLETION
+  [ ] Next session baseline uses real completed results
+  [ ] Ghost You populated from prior session
+  [ ] Practice sessions visible and read-only
+
+MOBILE (iPhone/Safari)
+  [ ] PWA install: icons on home screen
+  [ ] Safe areas: padding around notch/home indicator
+  [ ] Numeric input: digits and colon (2:02) accepted
+  [ ] Leaderboard: readable at 375px width
+  [ ] Reload: state restores
+
+COACH
+  [ ] Authenticated "Coach Me" succeeds
+  [ ] Unauthorized returns 401 + CORS headers
+  [ ] OPTIONS preflight succeeds
+
+MULTI-USER
+  [ ] User B cannot read User A's sessions/events
+  [ ] User B cannot complete User A's sessions
+
+================================================================================
+CRITICAL NOTES
+================================================================================
+
+NO DATA LOSS:     Migrations preserve all workout history
+BACKWARD COMPAT:  Existing competitor snapshots unchanged
+RLS ENFORCED:     All queries use authenticated user context
+SECRETS SAFE:     ANTHROPIC_API_KEY in Supabase Secrets only
+IDEMPOTENT:       Coach redeploy is safe to repeat
+
+================================================================================
+DEPLOYMENT ORDER
+================================================================================
+
+1. Apply Supabase migrations 002/003
+2. Redeploy coach function (verify Anthropic secrets)
+3. Redeploy frontend to Vercel
+4. Run verification checklist
+
+Ready: ✓ Code merged & tested
+Blocked: ⏳ Database, Coach, Frontend (awaiting your environment)

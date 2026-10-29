@@ -5,7 +5,8 @@ import {
   signOut,
   getPriorSaturdays,
   getSessionEvents,
-  computeEffectiveResultsFromEvents
+  computeEffectiveResultsFromEvents,
+  deleteSession
 } from '../supabase';
 import { generateBaseline, generateCompetitors } from '../competitors';
 import { cacheBaseline, cacheCompetitors } from '../queue';
@@ -113,6 +114,20 @@ export default function HomeScreen({ user, onStartSession, onLogout }: HomeScree
     }
   };
 
+  const handleDeleteSession = async (sessionId: string, event: React.MouseEvent) => {
+    event.stopPropagation();
+    const confirmed = confirm('Delete this session? This cannot be undone.');
+    if (!confirmed) return;
+
+    try {
+      await deleteSession(sessionId);
+      setSessions(sessions.filter(s => s.session_id !== sessionId));
+    } catch (error) {
+      console.error('Delete failed:', error);
+      alert('Failed to delete session');
+    }
+  };
+
   const getCategoryColor = (category: string): string => {
     switch (category) {
       case 'Outstanding':
@@ -175,21 +190,41 @@ export default function HomeScreen({ user, onStartSession, onLogout }: HomeScree
                   className="session-card"
                   style={{
                     borderLeftColor: session.kind === 'saturday_prt' ? '#3b82f6' : '#6b7280',
-                    cursor: 'pointer'
+                    cursor: 'pointer',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
                   }}
                   onClick={() => {
                     onStartSession(session.session_id);
                   }}
                 >
-                  <div className="session-date">
-                    {new Date(session.started_at).toLocaleDateString()}
+                  <div style={{ flex: 1 }}>
+                    <div className="session-date">
+                      {new Date(session.started_at).toLocaleDateString()}
+                    </div>
+                    <div className="session-kind">
+                      {session.kind === 'saturday_prt' ? '🏋️ Saturday PRT' : '📝 Practice'}
+                    </div>
+                    <div className="session-state">
+                      {session.state === 'completed' ? '✓ Completed' : 'In Progress' + (session.state === 'in_progress' ? ' — tap to continue' : '')}
+                    </div>
                   </div>
-                  <div className="session-kind">
-                    {session.kind === 'saturday_prt' ? '🏋️ Saturday PRT' : '📝 Practice'}
-                  </div>
-                  <div className="session-state">
-                    {session.state === 'completed' ? '✓ Completed' : 'In Progress' + (session.state === 'in_progress' ? ' — tap to continue' : '')}
-                  </div>
+                  <button
+                    onClick={(e) => handleDeleteSession(session.session_id, e)}
+                    style={{
+                      background: '#ef4444',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '6px',
+                      padding: '6px 10px',
+                      fontSize: '12px',
+                      cursor: 'pointer',
+                      marginLeft: '12px'
+                    }}
+                  >
+                    Delete
+                  </button>
                 </div>
               ))}
             </div>
