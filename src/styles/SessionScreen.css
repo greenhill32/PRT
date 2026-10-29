@@ -1,0 +1,223 @@
+.session-screen {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.session-header {
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+  color: white;
+  padding: 16px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.session-header h1 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.session-status {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.queued-badge {
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 20px;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.session-main {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  padding: 20px;
+  overflow-y: auto;
+  flex: 1;
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.session-left,
+.session-right {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.entry-panel {
+  background: var(--bg-alt);
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.entry-panel h3 {
+  margin-bottom: 16px;
+  font-size: 18px;
+}
+
+.entry-panel input {
+  font-size: 18px;
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+.entry-panel button {
+  width: 100%;
+  padding: 14px;
+  font-size: 16px;
+}
+
+.score-display {
+  background: var(--bg-alt);
+  border-radius: 12px;
+  padding: 20px;
+  text-align: center;
+}
+
+.score-display h3 {
+  margin-bottom: 16px;
+}
+
+.score-large {
+  font-size: 48px;
+  font-weight: 700;
+  color: var(--primary);
+  margin: 10px 0;
+}
+
+.score-category {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.score-gap {
+  font-size: 14px;
+  color: var(--text-light);
+}
+
+.leaderboard-section {
+  background: var(--bg-alt);
+  border-radius: 12px;
+  padding: 20px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.leaderboard-section h3 {
+  margin-bottom: 16px;
+}
+
+.leaderboard {
+  font-size: 12px;
+}
+
+.leaderboard th {
+  padding: 8px 6px;
+  font-size: 11px;
+}
+
+.leaderboard td {
+  padding: 8px 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.leaderboard .user-row {
+  font-weight: 600;
+  background: rgba(59, 130, 246, 0.1);
+}
+
+.leaderboard .overall-score {
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.coach-section {
+  background: var(--bg-alt);
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.coach-section h3 {
+  margin-bottom: 16px;
+}
+
+.coach-buttons {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.coach-buttons button {
+  flex: 1;
+  padding: 10px;
+  font-size: 13px;
+}
+
+.coach-input-group {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.coach-input-group input {
+  flex: 1;
+  font-size: 13px;
+  padding: 10px;
+}
+
+.coach-input-group button {
+  padding: 10px 16px;
+  font-size: 13px;
+}
+
+.coach-response {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text);
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+@media (max-width: 900px) {
+  .session-main {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .session-header {
+    flex-direction: column;
+    gap: 12px;
+    align-items: flex-start;
+  }
+
+  .session-status {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .leaderboard {
+    font-size: 11px;
+  }
+
+  .leaderboard th,
+  .leaderboard td {
+    padding: 6px 4px;
+    font-size: 10px;
+  }
+}
