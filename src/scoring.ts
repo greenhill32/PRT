@@ -136,7 +136,7 @@ export function eventPoints(
         ? context.thresholds.plank
         : context.thresholds.row2k;
 
-  const isAscending = eventType === 'pushups';
+  const isAscending = eventType === 'pushups' || eventType === 'plank';
   const score = interpolateScore(rawValue, thresholds, isAscending);
 
   return Math.min(100, Math.max(0, score));
