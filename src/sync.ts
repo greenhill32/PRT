@@ -1,145 +1,104 @@
-// Background sync for queued events
 import * as queue from './queue';
-import * as supabase from './supabase';
-import type { Event } from './types';
+import * as api from './supabase';
+import { queuedToEvent, nextMissingEvent } from './sessionState';
+import { errorMessage } from './eventPersistence';
+import type { QueuedEvent } from './types';
 
-let syncInProgress = false;
-let syncInterval: number | null = null;
+interface SyncResult { synced: number; failed: number; errors: string[] }
+let running: Promise<SyncResult> | null = null;
+let syncInterval: ReturnType<typeof setInterval> | null = null;
+let countInterval: ReturnType<typeof setInterval> | null = null;
+let removeListeners: (() => void) | null = null;
 
-// Exponential backoff for retries
-function getBackoffDelay(attempts: number): number {
-  return Math.min(30000, 1000 * Math.pow(2, attempts));
+// Old syncing rows represent uploads interrupted by a reload/crash. Retrying their UUID is safe.
+function orderForSync(events: QueuedEvent[]): QueuedEvent[] {
+  const remaining = new Map(events.map(e => [e.event_id, e]));
+  const ordered: QueuedEvent[] = [];
+  while (remaining.size) {
+    const ready = [...remaining.values()].filter(e =>
+      !remaining.has(e.correction_of ?? '') && !remaining.has(e.voids_event_id ?? '')
+    ).sort((a, b) => a.timestamp.localeCompare(b.timestamp) || a.event_id.localeCompare(b.event_id));
+    if (!ready.length) throw new Error('Invalid circular correction references in local queue.');
+    for (const event of ready) { ordered.push(event); remaining.delete(event.event_id); }
+  }
+  return ordered;
 }
 
-export async function syncQueue(): Promise<{
-  synced: number;
-  failed: number;
-  errors: string[];
-}> {
-  if (syncInProgress) {
-    return { synced: 0, failed: 0, errors: ['Sync already in progress'] };
-  }
-
-  syncInProgress = true;
-  const results = { synced: 0, failed: 0, errors: [] as string[] };
-
+async function runSync(): Promise<SyncResult> {
+  const result: SyncResult = { synced: 0, failed: 0, errors: [] };
   try {
-    // Sync both queued and errored items (retry failed events)
-    const queued = await queue.getQueuedEventsByStatus('queued');
-    const errored = await queue.getQueuedEventsByStatus('error');
-    const allToSync = [...queued, ...errored];
-
-    for (const queuedEvent of allToSync) {
-      await queue.updateQueuedEventStatus(queuedEvent.event_id, 'syncing');
-
+    const user = await api.getCurrentUser();
+    if (!user) throw new Error('Sign in before syncing results.');
+    const pending = (await queue.getQueuedEvents()).filter(e => e.status !== 'synced' && (!e.user_id || e.user_id === user.id));
+    for (const item of orderForSync(pending)) {
       try {
-        // Convert queued event to database Event format
-        const dbEvent: Omit<Event, 'created_at'> = {
-          event_id: queuedEvent.event_id,
-          session_id: queuedEvent.session_id,
-          event_type: queuedEvent.event_type,
-          raw_value: queuedEvent.raw_value,
-          unit: queuedEvent.unit,
-          timestamp: queuedEvent.timestamp,
-          source: 'app',
-          correction_of: null,
-          voids_event_id: null,
-          detail: queuedEvent.detail
-        };
-
-        // Append to Supabase
-        await supabase.appendEvent(dbEvent);
-
-        // Remove from queue (successfully synced)
-        await queue.removeQueuedEvent(queuedEvent.event_id);
-        results.synced++;
+        // Protect legacy queue rows that predate local user_id tagging.
+        if (!item.user_id && (await api.getSession(item.session_id)).user_id !== user.id) continue;
+        await queue.updateQueuedEventStatus(item.event_id, 'syncing');
+        const { created_at: _created, ...event } = queuedToEvent(item);
+        await api.appendEvent(event);
+        await queue.removeQueuedEvent(item.event_id);
+        result.synced++;
       } catch (error) {
-        const errorMsg = error instanceof Error ? error.message : String(error);
-
-        // Check if it's a duplicate (already exists - idempotent)
-        if (errorMsg.includes('duplicate') || errorMsg.includes('unique')) {
-          await queue.removeQueuedEvent(queuedEvent.event_id);
-          results.synced++;
-        } else {
-          // Keep in error state for future retry
-          await queue.updateQueuedEventStatus(
-            queuedEvent.event_id,
-            'error',
-            errorMsg
-          );
-          results.failed++;
-          results.errors.push(`${queuedEvent.event_id}: ${errorMsg}`);
-        }
+        const message = errorMessage(error);
+        await queue.updateQueuedEventStatus(item.event_id, 'error', message);
+        result.failed++;
+        result.errors.push(item.event_id + ': ' + message);
       }
     }
-  } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : String(error);
-    results.errors.push(`Sync failed: ${errorMsg}`);
-  } finally {
-    syncInProgress = false;
-  }
-
-  return results;
+  } catch (error) { result.errors.push(errorMessage(error)); }
+  return result;
 }
 
-// Start periodic sync (e.g., every 30 seconds when online)
-export function startPeriodicSync(interval: number = 30000): void {
-  if (syncInterval) return; // Already running
-
-  const id = setInterval(async () => {
-    if (navigator.onLine) {
-      try {
-        await syncQueue();
-      } catch (error) {
-        console.error('Periodic sync error:', error);
-      }
-    }
-  }, interval) as unknown as number;
-
-  syncInterval = id;
+export function syncQueue(): Promise<SyncResult> {
+  if (!running) running = runSync().finally(() => { running = null; });
+  return running;
 }
 
-// Stop periodic sync
+export async function completeSession(sessionId: string): Promise<void> {
+  if (!navigator.onLine) throw new Error('Results are stored on this device. Reconnect before completing the session.');
+  await syncQueue();
+  const pending = await queue.getQueuedCount(sessionId);
+  if (pending) throw new Error(pending + ' result(s) still need to sync. Session remains in progress.');
+  // Read persisted rows after syncing; cached/optimistic React state cannot prove completion.
+  const { data, error } = await api.supabase.from('events').select().eq('session_id', sessionId);
+  if (error) throw error;
+  if (nextMissingEvent(data || [])) throw new Error('All three results must be saved before completing the session.');
+  await api.updateSessionState(sessionId, 'completed');
+}
+
+export function startPeriodicSync(interval = 30000): void {
+  if (!syncInterval) syncInterval = setInterval(() => {
+    if (navigator.onLine) void syncQueue();
+  }, interval);
+}
 export function stopPeriodicSync(): void {
-  if (syncInterval) {
-    clearInterval(syncInterval as unknown as number);
-    syncInterval = null;
-  }
+  if (syncInterval) clearInterval(syncInterval);
+  syncInterval = null;
 }
-
-// Manual sync trigger
 export async function triggerSync(): Promise<void> {
-  if (!navigator.onLine) {
-    throw new Error('Device is offline');
-  }
+  if (!navigator.onLine) throw new Error('Device is offline');
   await syncQueue();
 }
-
-// Listen for online/offline events
 export function setupSyncListeners(): void {
-  window.addEventListener('online', async () => {
-    console.log('Device online, starting sync...');
-    await syncQueue();
-  });
-
-  window.addEventListener('offline', () => {
-    console.log('Device offline');
-  });
+  if (removeListeners) return;
+  const online = () => { void syncQueue(); };
+  window.addEventListener('online', online);
+  removeListeners = () => window.removeEventListener('online', online);
 }
-
-// Watch for network changes and trigger sync
 export function setupNetworkWatcher(onQueuedCountChange: (count: number) => void): void {
+  cleanupSync();
   setupSyncListeners();
   startPeriodicSync();
-
-  // Initial check
-  setInterval(async () => {
-    const count = await queue.getQueuedCount();
-    onQueuedCountChange(count);
-  }, 1000);
+  const update = () => { void queue.getQueuedCount().then(onQueuedCountChange).catch(console.error); };
+  countInterval = setInterval(update, 1000);
+  update();
+  if (navigator.onLine) void syncQueue();
 }
-
-// Cleanup
 export function cleanupSync(): void {
   stopPeriodicSync();
+  if (countInterval) clearInterval(countInterval);
+  countInterval = null;
+  removeListeners?.();
+  removeListeners = null;
 }

@@ -1,38 +1,35 @@
--- Migration 002: Allow authenticated users to complete their own sessions
--- while keeping events completely append-only and protecting immutable fields
---
--- Problem: Original sessions_update policy was invalid (used NEW in RLS USING clause).
--- Sessions could never transition from in_progress to completed.
---
--- Solution: Use column-level grants instead of relying on policy field checks.
--- - Drop old invalid policy
--- - Revoke broad UPDATE
--- - Grant UPDATE only on (state, completed_at) columns
--- - Create new policy that enforces owner+state transition checks
+-- Fresh-install completion policy. OLD/NEW are trigger records, not RLS variables.
+-- ### Schema and policy changes only; no workout rows are changed or removed.
+-- Correct session completion for both fresh installs and existing deployments.
+BEGIN;
 
--- Drop the overly-restrictive sessions_update policy
-DROP POLICY IF EXISTS sessions_update ON sessions;
+DROP POLICY IF EXISTS sessions_update ON public.sessions;
+REVOKE UPDATE ON public.sessions FROM PUBLIC, anon, authenticated;
+GRANT UPDATE (state, completed_at) ON public.sessions TO authenticated;
 
--- Revoke broad UPDATE from all roles
-REVOKE UPDATE ON sessions FROM anon, authenticated;
-
--- Grant authenticated users UPDATE only on state and completed_at columns
-GRANT UPDATE (state, completed_at) ON sessions TO authenticated;
-
--- Create a new UPDATE policy that:
--- - only allows the session owner to update
--- - only allows in_progress -> completed transition
--- - requires completed_at to be set when transitioning to completed
-CREATE POLICY sessions_update ON sessions
-  FOR UPDATE
-  USING (auth.uid() = user_id)
+CREATE POLICY sessions_update ON public.sessions
+  FOR UPDATE TO authenticated
+  USING (auth.uid() = user_id AND state = 'in_progress')
   WITH CHECK (
-    -- Owner-only
     auth.uid() = user_id
-    -- Only allow transition to completed (not back to in_progress)
-    AND (state = 'completed' OR OLD.state = 'in_progress')
+    AND state = 'completed'
+    AND completed_at IS NOT NULL
+    -- Completion requires three effective, persisted results, including zero scores.
+    AND (
+      SELECT count(DISTINCT e.event_type)
+      FROM public.events e
+      WHERE e.session_id = sessions.session_id
+        AND e.event_type IN ('pushups', 'plank', 'row_2k')
+        AND e.raw_value IS NOT NULL
+        AND e.raw_value >= 0
+        AND (e.event_type <> 'row_2k' OR e.raw_value > 0)
+        AND NOT EXISTS (
+          SELECT 1 FROM public.events v
+          WHERE v.session_id = e.session_id
+            AND v.event_type = 'void'
+            AND v.voids_event_id = e.event_id
+        )
+    ) = 3
   );
 
--- Note: Events remain completely append-only.
--- events_update and events_delete policies remain unchanged (both USING false).
--- This migration does NOT modify event policies.
+COMMIT;

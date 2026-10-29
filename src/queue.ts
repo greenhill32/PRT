@@ -1,215 +1,144 @@
-// IndexedDB queue for offline event persistence and sync
-import type { QueuedEvent } from './types';
+// Durable IndexedDB writes resolve when the transaction commits, not just the request.
+import type { QueuedEvent, Session, Event } from './types';
 
 const DB_NAME = 'prt-offline';
 const QUEUE_STORE = 'queued-events';
 const BASELINE_STORE = 'baseline-cache';
 const COMPETITOR_STORE = 'competitor-cache';
-const DB_VERSION = 1;
-
+const SESSION_STORE = 'session-cache';
+const EVENT_STORE = 'event-cache';
+const DB_VERSION = 2;
 let db: IDBDatabase | null = null;
+let opening: Promise<IDBDatabase> | null = null;
 
-export async function initDB(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
+export function initDB(): Promise<IDBDatabase> {
+  if (db) return Promise.resolve(db);
+  if (opening) return opening;
+  opening = new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
-
-    request.onerror = () => reject(request.error);
+    request.onerror = () => { opening = null; reject(request.error); };
     request.onsuccess = () => {
       db = request.result;
+      db.onversionchange = () => { db?.close(); db = null; opening = null; };
       resolve(db);
     };
-
-    request.onupgradeneeded = (event) => {
-      const database = (event.target as IDBOpenDBRequest).result;
-
-      // Create object stores
-      if (!database.objectStoreNames.contains(QUEUE_STORE)) {
-        database.createObjectStore(QUEUE_STORE, { keyPath: 'event_id' });
-      }
-
-      if (!database.objectStoreNames.contains(BASELINE_STORE)) {
-        database.createObjectStore(BASELINE_STORE, { keyPath: 'session_id' });
-      }
-
-      if (!database.objectStoreNames.contains(COMPETITOR_STORE)) {
-        database.createObjectStore(COMPETITOR_STORE, { keyPath: 'session_id' });
+    request.onupgradeneeded = () => {
+      const database = request.result;
+      for (const name of [QUEUE_STORE, BASELINE_STORE, COMPETITOR_STORE, SESSION_STORE, EVENT_STORE]) {
+        if (!database.objectStoreNames.contains(name)) {
+          database.createObjectStore(name, { keyPath: name === QUEUE_STORE ? 'event_id' : 'session_id' });
+        }
       }
     };
   });
+  return opening;
 }
 
-export async function getDB(): Promise<IDBDatabase> {
-  if (!db) {
-    db = await initDB();
-  }
-  return db;
-}
+export const getDB = initDB;
 
-// Queue operations
-export async function queueEvent(event: QueuedEvent): Promise<void> {
+async function request<T>(name: string, mode: IDBTransactionMode, action: (store: IDBObjectStore) => IDBRequest): Promise<T> {
   const database = await getDB();
-  const tx = database.transaction(QUEUE_STORE, 'readwrite');
-  const store = tx.objectStore(QUEUE_STORE);
-
   return new Promise((resolve, reject) => {
-    const request = store.put(event);
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => resolve();
+    const tx = database.transaction(name, mode);
+    let value: T;
+    tx.oncomplete = () => resolve(value);
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error || new Error('IndexedDB transaction aborted'));
+    const req = action(tx.objectStore(name));
+    req.onsuccess = () => { value = req.result; };
+    req.onerror = () => reject(req.error);
   });
 }
 
-export async function getQueuedEvents(): Promise<QueuedEvent[]> {
-  const database = await getDB();
-  const tx = database.transaction(QUEUE_STORE, 'readonly');
-  const store = tx.objectStore(QUEUE_STORE);
+export const queueEvent = (event: QueuedEvent): Promise<void> =>
+  request(QUEUE_STORE, 'readwrite', store => store.put(event));
 
-  return new Promise((resolve, reject) => {
-    const request = store.getAll();
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => resolve(request.result);
-  });
-}
+export const getQueuedEvents = (): Promise<QueuedEvent[]> =>
+  request(QUEUE_STORE, 'readonly', store => store.getAll());
 
 export async function getQueuedEventsBySession(session_id: string): Promise<QueuedEvent[]> {
-  const allQueued = await getQueuedEvents();
-  return allQueued.filter((e) => e.session_id === session_id);
+  return (await getQueuedEvents()).filter(e => e.session_id === session_id);
 }
 
 export async function getQueuedEventsByStatus(status: string): Promise<QueuedEvent[]> {
-  const allQueued = await getQueuedEvents();
-  return allQueued.filter((e) => e.status === status);
+  return (await getQueuedEvents()).filter(e => e.status === status);
 }
 
 export async function updateQueuedEventStatus(
-  event_id: string,
-  status: 'queued' | 'syncing' | 'synced' | 'error',
-  error?: string
+  event_id: string, status: QueuedEvent['status'], error?: string
 ): Promise<void> {
   const database = await getDB();
-  const tx = database.transaction(QUEUE_STORE, 'readwrite');
-  const store = tx.objectStore(QUEUE_STORE);
-
-  const event = await new Promise<QueuedEvent | undefined>((resolve, reject) => {
-    const request = store.get(event_id);
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => resolve(request.result);
-  });
-
-  if (event) {
-    event.status = status;
-    if (error) event.error = error;
-
-    return new Promise((resolve, reject) => {
-      const request = store.put(event);
-      request.onerror = () => reject(request.error);
-      request.onsuccess = () => resolve();
-    });
-  }
-}
-
-export async function removeQueuedEvent(event_id: string): Promise<void> {
-  const database = await getDB();
-  const tx = database.transaction(QUEUE_STORE, 'readwrite');
-  const store = tx.objectStore(QUEUE_STORE);
-
   return new Promise((resolve, reject) => {
-    const request = store.delete(event_id);
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => resolve();
-  });
-}
-
-export async function clearQueue(): Promise<void> {
-  const database = await getDB();
-  const tx = database.transaction(QUEUE_STORE, 'readwrite');
-  const store = tx.objectStore(QUEUE_STORE);
-
-  return new Promise((resolve, reject) => {
-    const request = store.clear();
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => resolve();
-  });
-}
-
-export async function getQueuedCount(): Promise<number> {
-  const queued = await getQueuedEvents();
-  return queued.filter((e) => e.status === 'queued').length;
-}
-
-// Baseline cache
-export async function cacheBaseline(session_id: string, baseline: any): Promise<void> {
-  const database = await getDB();
-  const tx = database.transaction(BASELINE_STORE, 'readwrite');
-  const store = tx.objectStore(BASELINE_STORE);
-
-  return new Promise((resolve, reject) => {
-    const request = store.put({ session_id, baseline, cached_at: Date.now() });
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => resolve();
-  });
-}
-
-export async function getCachedBaseline(session_id: string): Promise<any | null> {
-  const database = await getDB();
-  const tx = database.transaction(BASELINE_STORE, 'readonly');
-  const store = tx.objectStore(BASELINE_STORE);
-
-  return new Promise((resolve, reject) => {
-    const request = store.get(session_id);
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => {
-      const result = request.result;
-      resolve(result ? result.baseline : null);
+    const tx = database.transaction(QUEUE_STORE, 'readwrite');
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error || new Error('IndexedDB transaction aborted'));
+    const store = tx.objectStore(QUEUE_STORE);
+    const req = store.get(event_id);
+    req.onsuccess = () => {
+      if (req.result) store.put({ ...req.result, status, error });
     };
   });
 }
 
+export const removeQueuedEvent = (event_id: string): Promise<void> =>
+  request(QUEUE_STORE, 'readwrite', store => store.delete(event_id));
+
+export const clearQueue = (): Promise<void> =>
+  request(QUEUE_STORE, 'readwrite', store => store.clear());
+
+export async function getQueuedCount(session_id?: string): Promise<number> {
+  return (await getQueuedEvents()).filter(e =>
+    e.status !== 'synced' && (!session_id || e.session_id === session_id)
+  ).length;
+}
+
+const cachePut = (name: string, session_id: string, data: unknown): Promise<void> =>
+  request(name, 'readwrite', store => store.put({ session_id, data, cached_at: Date.now() }));
+
+async function cacheGet<T>(name: string, session_id: string): Promise<T | null> {
+  const row = await request<any>(name, 'readonly', store => store.get(session_id));
+  // Read the v1 baseline/competitor cache shape as well as v2.
+  return row ? row.data ?? row.baseline ?? row.competitors ?? null : null;
+}
+
+export const cacheBaseline = (id: string, value: unknown) => cachePut(BASELINE_STORE, id, value);
+export const getCachedBaseline = (id: string) => cacheGet<any>(BASELINE_STORE, id);
 export async function getLastCachedBaseline(): Promise<any | null> {
+  const rows = await request<any[]>(BASELINE_STORE, 'readonly', store => store.getAll());
+  const row = rows.sort((a, b) => b.cached_at - a.cached_at)[0];
+  return row ? row.data ?? row.baseline : null;
+}
+export const cacheCompetitors = (id: string, value: unknown) => cachePut(COMPETITOR_STORE, id, value);
+export const getCachedCompetitors = (id: string) => cacheGet<any>(COMPETITOR_STORE, id);
+export const cacheSession = (session: Session) => cachePut(SESSION_STORE, session.session_id, session);
+export const getCachedSession = (id: string) => cacheGet<Session>(SESSION_STORE, id);
+export async function getCachedSessions(user_id: string): Promise<Session[]> {
+  const rows = await request<any[]>(SESSION_STORE, 'readonly', store => store.getAll());
+  return rows.map(r => r.data as Session).filter(s => s.user_id === user_id);
+}
+export async function cacheSessionEvents(id: string, events: Event[]): Promise<void> {
+  // The ledger is append-only. Merge in one transaction so a stale GET cannot
+  // overwrite an event just cached by the uploader before an offline reload.
   const database = await getDB();
-  const tx = database.transaction(BASELINE_STORE, 'readonly');
-  const store = tx.objectStore(BASELINE_STORE);
-
   return new Promise((resolve, reject) => {
-    const request = store.getAll();
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => {
-      const results = request.result;
-      if (results.length === 0) {
-        resolve(null);
-      } else {
-        const latest = results.sort(
-          (a, b) => b.cached_at - a.cached_at
-        )[0];
-        resolve(latest.baseline);
-      }
+    const tx = database.transaction(EVENT_STORE, 'readwrite');
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error || new Error('IndexedDB transaction aborted'));
+    const store = tx.objectStore(EVENT_STORE);
+    const req = store.get(id);
+    req.onsuccess = () => {
+      const existing: Event[] = req.result?.data ?? [];
+      const merged = new Map(existing.map(event => [event.event_id, event]));
+      for (const event of events) if (event.session_id === id) merged.set(event.event_id, event);
+      store.put({ session_id: id, data: [...merged.values()], cached_at: Date.now() });
     };
   });
 }
-
-// Competitor cache
-export async function cacheCompetitors(session_id: string, competitors: any): Promise<void> {
-  const database = await getDB();
-  const tx = database.transaction(COMPETITOR_STORE, 'readwrite');
-  const store = tx.objectStore(COMPETITOR_STORE);
-
-  return new Promise((resolve, reject) => {
-    const request = store.put({ session_id, competitors, cached_at: Date.now() });
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => resolve();
-  });
+export async function getCachedSessionEvents(id: string): Promise<Event[]> {
+  return await cacheGet<Event[]>(EVENT_STORE, id) ?? [];
 }
-
-export async function getCachedCompetitors(session_id: string): Promise<any | null> {
-  const database = await getDB();
-  const tx = database.transaction(COMPETITOR_STORE, 'readonly');
-  const store = tx.objectStore(COMPETITOR_STORE);
-
-  return new Promise((resolve, reject) => {
-    const request = store.get(session_id);
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => {
-      const result = request.result;
-      resolve(result ? result.competitors : null);
-    };
-  });
+export async function cacheSyncedEvent(event: Event): Promise<void> {
+  await cacheSessionEvents(event.session_id, [event]);
 }

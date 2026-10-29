@@ -484,3 +484,10 @@
     padding: 10px 16px;
   }
 }
+
+
+/* Mobile cards contain rank, name and overall score; full event columns stay on desktop. */
+@media (max-width: 900px) {
+  .leaderboard td:nth-child(3), .leaderboard td:nth-child(4), .leaderboard td:nth-child(5) { display: none; }
+}
+.session-message { grid-column: 1 / -1; padding: 12px; border: 1px solid var(--border); border-radius: 8px; }

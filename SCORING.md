@@ -8,7 +8,7 @@
 - Events: Push-ups, forearm plank, 2 km row
 - Altitude: under 5,000 ft
 
-## Official Threshold Tables
+## App Benchmark Thresholds
 
 | Score | Push-ups (reps) | Plank (mm:ss) | 2 km row (mm:ss) |
 |------:|----------------:|---------------:|------------------:|
@@ -25,12 +25,12 @@
 ## Scoring Rules
 
 1. **Event scoring:** For each event, compare raw value against the thresholds
-2. **Interpolation:** Between official thresholds, interpolate smoothly (not discrete 5-point jumps)
+2. **Interpolation:** Between benchmark thresholds, interpolate smoothly (not discrete 5-point jumps)
 3. **Ceiling:** Cap each event score at 100
-4. **Floor:** Below 60-point threshold, score is 0 (or continue interpolating down?)
+4. **Below the lowest threshold:** Push-ups and plank interpolate from zero effort = 0 points. Row times interpolate from 570 seconds = 60 points to 1,140 seconds = 0 points, then stay at zero.
 5. **Composite score:** Arithmetic mean of the three event scores
    ```
-   overallScore = round((pushupScore + plankScore + plankScore) / 3)
+   overallScore = round((pushupScore + plankScore + rowScore) / 3)
    ```
 
 ## Navy-Style Categories
@@ -61,6 +61,7 @@ Raw results:
 
 - Interpolation should be linear between adjacent thresholds
 - Push-ups are bounded at 0 (can't score negative)
-- Plank and row times: lower is better (inverse relationship)
+- Plank: longer is better. Row: faster is better.
 - The scoring module is the single source of truth for point calculation
 - Same module used by both client (for instant feedback) and Edge Function (authoritative)
+

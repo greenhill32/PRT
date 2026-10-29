@@ -52,3 +52,5 @@ Thumbs.db
 # Misc
 *.tsbuildinfo
 vitest.config.ts.bak
+vite.config.*.timestamp-*.mjs
+

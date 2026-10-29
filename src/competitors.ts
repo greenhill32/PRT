@@ -1,176 +1,90 @@
-// Competitor generation with seeded deterministic PRNG
 import type { BaselineSnapshot, CompetitorSnapshot, CompetitorResults } from './types';
 
-// Seeded PRNG (xorshift64)
+export const COMPETITOR_MODEL_VERSION = '2.0';
+
+// Fixed-width xorshift32: reproducible without unbounded BigInt state.
 class SeededRandom {
-  private state: bigint;
-
-  constructor(seed: number) {
-    this.state = BigInt(seed) || 1n;
-  }
-
+  private state: number;
+  constructor(seed: number) { this.state = seed >>> 0 || 1; }
   next(): number {
     let x = this.state;
-    x = x ^ (x << 13n);
-    x = x ^ (x >> 7n);
-    x = x ^ (x << 17n);
-    this.state = x;
-    return Math.abs(Number(x % 1000000n)) / 1000000;
+    x ^= x << 13; x ^= x >>> 17; x ^= x << 5;
+    this.state = x >>> 0;
+    return (this.state + 0.5) / 4294967296;
+  }
+  normal(): number {
+    return Math.sqrt(-2 * Math.log(this.next())) * Math.cos(2 * Math.PI * this.next());
   }
 }
 
-interface Persona {
-  ability_offset: number; // multiplier
-  form_variance: number;  // ±
-  noise_variance: number; // ±
+function nameSeed(seed: number, name: string): number {
+  let hash = seed >>> 0;
+  for (const char of name) hash = Math.imul(hash ^ char.charCodeAt(0), 16777619) >>> 0;
+  return hash;
 }
 
-const personas: Record<string, Persona> = {
-  peer: { ability_offset: 1.0, form_variance: 0.1, noise_variance: 0.1 },
-  steady: { ability_offset: 1.0, form_variance: 0.05, noise_variance: 0.05 },
-  volatile: { ability_offset: 1.0, form_variance: 0.2, noise_variance: 0.2 },
-  rival: { ability_offset: 1.35, form_variance: 0.1, noise_variance: 0.1 }
+const personas = {
+  peer: { abilitySD: 0, formSD: 0.65, noiseSD: 0.75 },
+  steady: { abilitySD: 0, formSD: 0.35, noiseSD: 0.4 },
+  volatile: { abilitySD: 0, formSD: 0.9, noiseSD: 1.2 },
+  rival: { abilitySD: 0.4, formSD: 0.65, noiseSD: 0.75 }
 };
 
-// Default baseline for cold start (< 3 prior sessions)
-function defaultBaseline(): BaselineSnapshot {
-  return {
-    pushups_median: 30,  // ~score 65
-    plank_median_sec: 90, // 1:30, ~score 65
-    row_median_sec: 570  // 9:30, ~score 60
-  };
-}
+const defaultBaseline = (): BaselineSnapshot => ({
+  pushups_median: 30, plank_median_sec: 90, row_median_sec: 570
+});
 
-// Calculate median from sorted array
 function median(values: number[]): number {
-  if (values.length === 0) return 0;
   const sorted = [...values].sort((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
-  return sorted.length % 2 === 0
-    ? (sorted[mid - 1] + sorted[mid]) / 2
-    : sorted[mid];
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 }
 
-// Generate baseline from effective results of prior sessions
 export function generateBaseline(
   priorResults: Array<{ pushups?: number; plank?: number; row_2k?: number }>
 ): BaselineSnapshot {
-  if (priorResults.length === 0) {
-    return defaultBaseline();
-  }
-
-  // For each event type, collect values from prior sessions and calculate median
-  const pushups = [];
-  const plank = [];
-  const row = [];
-
-  for (const result of priorResults) {
-    if (result.pushups !== undefined && result.pushups > 0) pushups.push(result.pushups);
-    if (result.plank !== undefined && result.plank > 0) plank.push(result.plank);
-    if (result.row_2k !== undefined && result.row_2k > 0) row.push(result.row_2k);
-  }
-
+  const fallback = defaultBaseline();
+  const values = (type: 'pushups' | 'plank' | 'row_2k') => priorResults.slice(0, 5)
+    .map(r => r[type]).filter((v): v is number => Number.isFinite(v) && v >= 0 && (type !== 'row_2k' || v > 0));
+  const pushups = values('pushups'), plank = values('plank'), row = values('row_2k');
   return {
-    pushups_median: pushups.length > 0 ? median(pushups) : defaultBaseline().pushups_median,
-    plank_median_sec: plank.length > 0 ? median(plank) : defaultBaseline().plank_median_sec,
-    row_median_sec: row.length > 0 ? median(row) : defaultBaseline().row_median_sec
+    pushups_median: pushups.length ? median(pushups) : fallback.pushups_median,
+    plank_median_sec: plank.length ? median(plank) : fallback.plank_median_sec,
+    row_median_sec: row.length ? median(row) : fallback.row_median_sec
   };
-}
-
-// Bound push-ups at a reasonable max
-function boundPushups(value: number): number {
-  return Math.max(0, Math.min(100, Math.round(value)));
-}
-
-// Log-normal distribution for times (right-skewed, positive)
-function logNormalValue(mean: number, form: number, noise: number): number {
-  // Approximate log-normal using exponential transformation
-  const mu = Math.log(mean);
-  const z = form + noise; // Combined effect
-  const value = Math.exp(mu + z * 0.1); // 0.1 scales the effect
-  return Math.max(0, value);
 }
 
 export function generateCompetitors(
   baseline: BaselineSnapshot,
   seed: number,
-  ghostYouResults?: { pushups: number; plank: number; row_2k: number }
+  ghostYouResults?: CompetitorResults
 ): CompetitorSnapshot {
-  const competitors: any = {};
-
+  const competitors: Partial<CompetitorSnapshot> = {};
   for (const [name, persona] of Object.entries(personas)) {
-    const prng = new SeededRandom(seed + name.charCodeAt(0));
-
-    // Draw session form (good/bad day multiplier)
-    const form = (prng.next() - 0.5) * 2 * persona.form_variance;
-
-    // Generate results for each event
-    // For push-ups (more is better): multiply upward
-    const pushups_base = baseline.pushups_median * persona.ability_offset;
-
-    // For times (less is better): invert the multiplier
-    // ability_offset > 1 means stronger, which means lower time
-    const ability_inverse = 1 / persona.ability_offset;
-    const plank_base = baseline.plank_median_sec * ability_inverse;
-    const row_base = baseline.row_median_sec * ability_inverse;
-
-    // Push-ups: bounded count, use linear adjustment
-    const pushups_noise = (prng.next() - 0.5) * 2 * persona.noise_variance;
-    const pushups_adj = pushups_base * (1 + form * 0.5 + pushups_noise * 0.5);
-    const pushups: number = boundPushups(pushups_adj);
-
-    // Plank & Row: use log-normal for right-skewed distribution
-    const plank_noise = (prng.next() - 0.5) * 2 * persona.noise_variance;
-    const plank_adj = logNormalValue(
-      plank_base,
-      form * 0.5,
-      plank_noise * 0.5
-    );
-    const plank: number = Math.max(30, Math.round(plank_adj)); // minimum 30 sec
-
-    const row_noise = (prng.next() - 0.5) * 2 * persona.noise_variance;
-    const row_adj = logNormalValue(
-      row_base,
-      form * 0.5,
-      row_noise * 0.5
-    );
-    const row: number = Math.max(400, Math.round(row_adj)); // minimum 400 sec (6:40)
-
-    competitors[name] = {
-      pushups,
-      plank,
-      row_2k: row
+    const rng = new SeededRandom(nameSeed(seed, name));
+    const form = rng.normal() * persona.formSD;
+    const performance = () => persona.abilitySD + form + rng.normal() * persona.noiseSD;
+    // Positive performance improves every event: more reps, longer plank, faster row.
+    // Rival's advantage is 0.4 SD, with overlapping good/bad day distributions.
+    const result: CompetitorResults = {
+      pushups: Math.max(0, Math.round(baseline.pushups_median * (1 + 0.12 * performance()))),
+      plank: Math.max(0, Math.round(baseline.plank_median_sec * Math.exp(0.12 * performance()))),
+      row_2k: Math.max(1, Math.round(baseline.row_median_sec * Math.exp(-0.05 * performance())))
     };
+    competitors[name] = result;
   }
-
-  // Ghost You: best prior session or PB
-  if (ghostYouResults) {
-    competitors.ghost_you = ghostYouResults;
-  } else {
-    competitors.ghost_you = null;
-  }
-
+  competitors.ghost_you = ghostYouResults ? { ...ghostYouResults } : null;
   return competitors as CompetitorSnapshot;
 }
 
-// Rival must be beatable: ensure it's not too far ahead
+// Optional hard bound; generation itself uses overlapping performance distributions.
 export function ensureRivalBeatable(
-  baseline: BaselineSnapshot,
-  rival: CompetitorResults,
-  maxPercentageAhead: number = 40
+  baseline: BaselineSnapshot, rival: CompetitorResults, maxPercentageAhead = 40
 ): CompetitorResults {
+  const fraction = Math.max(0, Math.min(99, maxPercentageAhead)) / 100;
   return {
-    pushups: Math.min(
-      rival.pushups,
-      Math.round(baseline.pushups_median * (1 + maxPercentageAhead / 100))
-    ),
-    plank: Math.min(
-      rival.plank,
-      Math.round(baseline.plank_median_sec * (1 - maxPercentageAhead / 100))
-    ),
-    row_2k: Math.min(
-      rival.row_2k,
-      Math.round(baseline.row_median_sec * (1 - maxPercentageAhead / 100))
-    )
+    pushups: Math.min(rival.pushups, Math.round(baseline.pushups_median * (1 + fraction))),
+    plank: Math.min(rival.plank, Math.round(baseline.plank_median_sec * (1 + fraction))),
+    row_2k: Math.max(rival.row_2k, Math.round(baseline.row_median_sec * (1 - fraction)))
   };
 }
