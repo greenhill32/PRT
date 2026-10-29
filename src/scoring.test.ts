@@ -48,9 +48,9 @@ describe('Scoring Module', () => {
       expect(score).toBeLessThan(75);
     });
 
-    it('better time = higher score (inverse relationship)', () => {
-      const score1 = eventPoints('plank', 140, ctx);
-      const score2 = eventPoints('plank', 120, ctx);
+    it('longer time = higher score for plank', () => {
+      const score1 = eventPoints('plank', 120, ctx);
+      const score2 = eventPoints('plank', 140, ctx);
       expect(score2).toBeGreaterThan(score1);
     });
   });
@@ -119,13 +119,13 @@ describe('Scoring Module', () => {
     it('categorizes Good (70-84)', () => {
       const tier = tierOf(70, ctx);
       expect(tier.category).toBe('Good');
-      expect(tier.pointsToNext).toBe(15); // to reach 85
+      expect(tier.pointsToNext).toBe(30); // to reach 100 (Outstanding)
     });
 
     it('categorizes Satisfactory (60-69)', () => {
       const tier = tierOf(65, ctx);
       expect(tier.category).toBe('Satisfactory');
-      expect(tier.pointsToNext).toBe(5); // to reach 70
+      expect(tier.pointsToNext).toBe(35); // to reach 100 (Outstanding)
     });
 
     it('categorizes Does Not Meet Standards (< 60)', () => {
@@ -135,9 +135,9 @@ describe('Scoring Module', () => {
   });
 
   describe('gapToNextTier', () => {
-    it('calculates points and raw value needed from Good to Excellent', () => {
+    it('calculates points and raw value needed from Good to Outstanding', () => {
       const result = gapToNextTier(70, 'pushups', ctx);
-      expect(result.pointGap).toBe(15); // 70 + 15 = 85
+      expect(result.pointGap).toBe(30); // 70 + 30 = 100
       expect(result.rawValueNeeded).toBeGreaterThan(48); // Need more push-ups
     });
 
@@ -147,15 +147,15 @@ describe('Scoring Module', () => {
     });
 
     it('estimates raw value correctly for different events', () => {
-      // From score 70 in each event, what raw value gets to 85?
+      // From score 70 in each event, what raw value gets to 100?
       const pushupGap = gapToNextTier(70, 'pushups', ctx);
       const plankGap = gapToNextTier(70, 'plank', ctx);
       const rowGap = gapToNextTier(70, 'row_2k', ctx);
 
-      // All should need 15 points
-      expect(pushupGap.pointGap).toBe(15);
-      expect(plankGap.pointGap).toBe(15);
-      expect(rowGap.pointGap).toBe(15);
+      // All should need 30 points to reach Outstanding
+      expect(pushupGap.pointGap).toBe(30);
+      expect(plankGap.pointGap).toBe(30);
+      expect(rowGap.pointGap).toBe(30);
 
       // Raw values should be different by event
       expect(pushupGap.rawValueNeeded).toBeGreaterThan(0);
@@ -203,12 +203,12 @@ describe('Scoring Module', () => {
       expect(score2).toBeLessThanOrEqual(score3);
     });
 
-    it('maintains monotonicity for plank (lower time = higher score)', () => {
-      const score1 = eventPoints('plank', 150, ctx);  // slower
-      const score2 = eventPoints('plank', 130, ctx);  // faster
-      const score3 = eventPoints('plank', 110, ctx);  // even faster
-      expect(score1).toBeLessThanOrEqual(score2);
-      expect(score2).toBeLessThanOrEqual(score3);
+    it('maintains monotonicity for plank (longer time = higher score)', () => {
+      const score1 = eventPoints('plank', 150, ctx);  // longer
+      const score2 = eventPoints('plank', 130, ctx);  // shorter
+      const score3 = eventPoints('plank', 110, ctx);  // even shorter
+      expect(score1).toBeGreaterThanOrEqual(score2);
+      expect(score2).toBeGreaterThanOrEqual(score3);
     });
   });
 });
