@@ -1,8 +1,8 @@
 # Supabase keepalive
 
-Supabase Free projects can be paused after a period of inactivity. The workflow
+Supabase Free projects can be paused after a period of inactivity. Check Supabase's current pausing policy for the exact threshold. The workflow
 `.github/workflows/supabase-keepalive.yml` runs `scripts/supabase-keepalive.mjs`
-four times a day to make a small, authenticated, read-only database query.
+once a day to make a small, authenticated, read-only database query.
 
 ## Limits you should know about
 
