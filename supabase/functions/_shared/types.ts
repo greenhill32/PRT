@@ -1,6 +1,6 @@
 // Core type definitions for PRT Virtual Gym
 
-export type EventType = 'pushups' | 'plank' | 'row_2k' | 'bike' | 'void';
+export type EventType = 'pushups' | 'plank' | 'row_2k' | 'bike' | 'void' | 'accessory';
 export type SessionKind = 'saturday_prt' | 'practice';
 export type SessionState = 'in_progress' | 'completed';
 export type SyncStatus = 'queued' | 'syncing' | 'synced' | 'error';
@@ -31,13 +31,25 @@ export interface Event {
   source: 'app' | 'pm5';
   correction_of: string | null; // event_id
   voids_event_id: string | null; // event_id
-  detail: RowDetail | null;
+  detail: EventDetail | null;
   created_at: string;
 }
+
+export type EventDetail = RowDetail | AccessoryDetail;
 
 export interface RowDetail {
   avg_500m_split_sec?: number;
   stroke_rate?: number;
+  notes?: string;
+}
+
+// Supplementary strength work. Stored on 'accessory' events; never used for scoring.
+export interface AccessoryDetail {
+  exercise: string;
+  load_kg: number;
+  sets: number;
+  reps_per_set: number;
+  tempo: string;
 }
 
 export interface BaselineSnapshot {
@@ -69,7 +81,7 @@ export interface QueuedEvent {
   unit: 'reps' | 's' | null;
   timestamp: string;
   source: 'app';
-  detail: RowDetail | null;
+  detail: EventDetail | null;
   status: SyncStatus;
   correction_of?: string | null;
   voids_event_id?: string | null;

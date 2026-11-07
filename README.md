@@ -41,3 +41,9 @@ npm run preview
 - **Coaching API:** Anthropic Claude
 
 See `PROJECT.md` for full architecture and data model.
+
+## Operations
+
+- `docs/SUPABASE_KEEPALIVE.md` — scheduled read-only heartbeat and how to resume a paused project
+- `docs/LOGIN_TROUBLESHOOTING.md` — checklist for Supabase and Vercel settings when sign-in fails
+- `docs/WORKOUT_IMPORT.md` — dry-run-first import of a workout recorded outside the app

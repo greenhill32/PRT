@@ -8,7 +8,9 @@ const COMPETITOR_STORE = 'competitor-cache';
 const SESSION_STORE = 'session-cache';
 const EVENT_STORE = 'event-cache';
 const PROGRESS_STORE = 'progress-cache';
-const DB_VERSION = 3;
+// Sessions started offline, waiting to be inserted before their events can sync.
+const PENDING_SESSION_STORE = 'pending-sessions';
+const DB_VERSION = 4;
 let db: IDBDatabase | null = null;
 let opening: Promise<IDBDatabase> | null = null;
 
@@ -25,7 +27,7 @@ export function initDB(): Promise<IDBDatabase> {
     };
     request.onupgradeneeded = () => {
       const database = request.result;
-      for (const name of [QUEUE_STORE, BASELINE_STORE, COMPETITOR_STORE, SESSION_STORE, EVENT_STORE, PROGRESS_STORE]) {
+      for (const name of [QUEUE_STORE, BASELINE_STORE, COMPETITOR_STORE, SESSION_STORE, EVENT_STORE, PROGRESS_STORE, PENDING_SESSION_STORE]) {
         if (!database.objectStoreNames.contains(name)) {
           database.createObjectStore(name, { keyPath: name === QUEUE_STORE ? 'event_id' : name === PROGRESS_STORE ? 'user_id' : 'session_id' });
         }
@@ -112,6 +114,15 @@ export async function getLastCachedBaseline(): Promise<any | null> {
 }
 export const cacheCompetitors = (id: string, value: unknown) => cachePut(COMPETITOR_STORE, id, value);
 export const getCachedCompetitors = (id: string) => cacheGet<any>(COMPETITOR_STORE, id);
+export const queuePendingSession = (session: Session): Promise<void> =>
+  request(PENDING_SESSION_STORE, 'readwrite', store => store.put(session));
+export const getPendingSessions = (): Promise<Session[]> =>
+  request(PENDING_SESSION_STORE, 'readonly', store => store.getAll());
+export const removePendingSession = (session_id: string): Promise<void> =>
+  request(PENDING_SESSION_STORE, 'readwrite', store => store.delete(session_id));
+export async function isPendingSession(session_id: string): Promise<boolean> {
+  return !!await request<Session | undefined>(PENDING_SESSION_STORE, 'readonly', store => store.get(session_id));
+}
 export const cacheSession = (session: Session) => cachePut(SESSION_STORE, session.session_id, session);
 export const getCachedSession = (id: string) => cacheGet<Session>(SESSION_STORE, id);
 export async function getCachedSessions(user_id: string): Promise<Session[]> {

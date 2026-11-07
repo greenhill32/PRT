@@ -1,0 +1,13 @@
+{
+  "date": "2026-11-07",
+  "start_time_utc": "12:00",
+  "pushups_reps": 50,
+  "plank_sec": 80,
+  "row_2k_sec": 653,
+  "row_notes": "1 pause during 2,000m (10:53 total)",
+  "accessories": [
+    { "exercise": "lat_pulldown", "load_kg": 32, "sets": 2, "reps_per_set": 4, "tempo": "4-4-4 (concentric-hold-eccentric, seconds)" },
+    { "exercise": "incline_chest_press", "load_kg": 20, "sets": 1, "reps_per_set": 4, "tempo": "4-4-4 (concentric-hold-eccentric, seconds)" },
+    { "exercise": "incline_chest_press", "load_kg": 25, "sets": 1, "reps_per_set": 4, "tempo": "4-4-4 (concentric-hold-eccentric, seconds)" }
+  ]
+}
