@@ -24,12 +24,31 @@ function orderForSync(events: QueuedEvent[]): QueuedEvent[] {
   return ordered;
 }
 
+// Sessions started offline must exist remotely before their results can upload.
+// Returns the IDs of sessions that are still waiting, so their results stay queued.
+async function flushPendingSessions(userId: string, result: SyncResult): Promise<Set<string>> {
+  const waiting = new Set<string>();
+  for (const session of await queue.getPendingSessions()) {
+    if (session.user_id !== userId) continue;
+    try {
+      await api.uploadPendingSession(session);
+      await queue.removePendingSession(session.session_id);
+    } catch (error) {
+      waiting.add(session.session_id);
+      result.errors.push('session ' + session.session_id + ': ' + errorMessage(error));
+    }
+  }
+  return waiting;
+}
+
 async function runSync(): Promise<SyncResult> {
   const result: SyncResult = { synced: 0, failed: 0, errors: [] };
   try {
     const user = await api.getCurrentUser();
     if (!user) throw new Error('Sign in before syncing results.');
-    const pending = (await queue.getQueuedEvents()).filter(e => e.status !== 'synced' && (!e.user_id || e.user_id === user.id));
+    const waiting = await flushPendingSessions(user.id, result);
+    const pending = (await queue.getQueuedEvents()).filter(e => e.status !== 'synced'
+      && (!e.user_id || e.user_id === user.id) && !waiting.has(e.session_id));
     for (const item of orderForSync(pending)) {
       try {
         // Protect legacy queue rows that predate local user_id tagging.
@@ -58,6 +77,9 @@ export function syncQueue(): Promise<SyncResult> {
 export async function completeSession(sessionId: string): Promise<void> {
   if (!navigator.onLine) throw new Error('Results are stored on this device. Reconnect before completing the session.');
   await syncQueue();
+  if (await queue.isPendingSession(sessionId)) {
+    throw new Error('This session is saved on this device and has not uploaded yet. Complete it once it syncs.');
+  }
   const pending = await queue.getQueuedCount(sessionId);
   if (pending) throw new Error(pending + ' result(s) still need to sync. Session remains in progress.');
   // Read persisted rows after syncing; cached/optimistic React state cannot prove completion.

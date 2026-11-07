@@ -221,3 +221,12 @@
     font-size: 16px;
   }
 }
+
+.offline-note {
+  margin: 0 0 16px;
+  padding: 10px 14px;
+  border-left: 4px solid var(--warning);
+  background: var(--bg-alt);
+  color: var(--text);
+  font-size: 14px;
+}

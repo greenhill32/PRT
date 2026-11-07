@@ -1,11 +1,12 @@
 import { createClient } from '@supabase/supabase-js';
+import { v4 as uuidv4 } from 'uuid';
 import type { Event, Session } from './types';
 import { COMPETITOR_MODEL_VERSION } from './competitors';
 import { computeEffectiveRawResults } from './leaderboard';
 import { appendIdempotently, errorMessage } from './eventPersistence';
 import {
   cacheSession, getCachedSession, getCachedSessions, cacheSessionEvents,
-  getCachedSessionEvents, cacheSyncedEvent
+  getCachedSessionEvents, cacheSyncedEvent, queuePendingSession
 } from './queue';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
@@ -17,18 +18,52 @@ const networkFailure = (error: unknown) =>
   (typeof navigator !== 'undefined' && !navigator.onLine)
   || /fetch|network|connection|timeout/i.test(errorMessage(error));
 
+type SessionUpload = Omit<Session, 'created_at'>;
+
+// The client generates the session ID, so a retried or later upload cannot create a second session.
+export async function uploadSession(row: SessionUpload): Promise<Session> {
+  const { data, error } = await supabase.from('sessions').insert([row]).select().single();
+  if (!error) return data;
+  if (error.code !== '23505') throw error;
+  // An earlier upload already landed. Only the owner can read it back under RLS.
+  const { data: existing, error: readError } = await supabase.from('sessions').select()
+    .eq('session_id', row.session_id).maybeSingle();
+  if (readError) throw readError;
+  if (!existing) throw new Error('Session ID already exists and is not visible to this account.');
+  return existing;
+}
+
+export async function uploadPendingSession(session: Session): Promise<void> {
+  const { created_at: _created, ...row } = session;
+  await uploadSession(row);
+}
+
 export async function createSession(
   kind: 'saturday_prt' | 'practice', competitor_seed: number,
   baseline_snapshot: any, competitor_snapshot: any
 ): Promise<Session> {
   const user = await getCurrentUser();
   if (!user) throw new Error('User not authenticated');
-  const { data, error } = await supabase.from('sessions').insert([{
-    user_id: user.id, kind, state: 'in_progress', scoring_version: '1.0',
+  const row: SessionUpload = {
+    session_id: uuidv4(), user_id: user.id, kind, started_at: new Date().toISOString(),
+    completed_at: null, state: 'in_progress', scoring_version: '1.0',
     competitor_model_version: COMPETITOR_MODEL_VERSION, competitor_seed,
     baseline_snapshot, competitor_snapshot
-  }]).select().single();
-  if (error) throw error;
+  };
+  // Offline or unreachable: keep the session on this device. It uploads before its results.
+  const saveLocally = async () => {
+    const session = { ...row, created_at: new Date().toISOString() } as Session;
+    await queuePendingSession(session);
+    await cacheSession(session);
+    return session;
+  };
+  if (!navigator.onLine) return saveLocally();
+  let data: Session;
+  try { data = await uploadSession(row); }
+  catch (error) {
+    if (!networkFailure(error)) throw error;
+    return saveLocally();
+  }
   await cacheSession(data);
   return data;
 }

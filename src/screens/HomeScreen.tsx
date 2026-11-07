@@ -9,8 +9,8 @@ import {
   deleteSession
 } from '../supabase';
 import { generateBaseline, generateCompetitors } from '../competitors';
-import { cacheBaseline, cacheCompetitors } from '../queue';
-import type { Session } from '../types';
+import { cacheBaseline, cacheCompetitors, getLastCachedBaseline } from '../queue';
+import type { BaselineSnapshot, Session } from '../types';
 import '../styles/HomeScreen.css';
 
 interface HomeScreenProps {
@@ -24,9 +24,17 @@ export default function HomeScreen({ user, onStartSession, onLogout, onViewProgr
   const [sessions, setSessions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
+  const [online, setOnline] = useState(navigator.onLine);
 
   useEffect(() => {
     loadSessions();
+    const update = () => setOnline(navigator.onLine);
+    window.addEventListener('online', update);
+    window.addEventListener('offline', update);
+    return () => {
+      window.removeEventListener('online', update);
+      window.removeEventListener('offline', update);
+    };
   }, []);
 
   const loadSessions = async () => {
@@ -43,26 +51,33 @@ export default function HomeScreen({ user, onStartSession, onLogout, onViewProgr
   const handleStartSession = async (kind: 'saturday_prt' | 'practice') => {
     setStarting(true);
     try {
-      // Get prior completed Saturday sessions
-      const priors = await getPriorSaturdays(5);
-
-      // For each prior session, fetch its events and compute effective results
-      const priorResults: Array<{ pushups?: number; plank?: number; row_2k?: number }> = [];
+      let baseline: BaselineSnapshot | null = null;
       let mostRecentSessionResults: { pushups?: number; plank?: number; row_2k?: number } | null = null;
+      try {
+        // Get prior completed Saturday sessions
+        const priors = await getPriorSaturdays(5);
 
-      for (const prior of priors) {
-        const events = await getSessionEvents(prior.session_id);
-        const effectiveResults = computeEffectiveResultsFromEvents(events);
-        priorResults.push(effectiveResults);
+        // For each prior session, fetch its events and compute effective results
+        const priorResults: Array<{ pushups?: number; plank?: number; row_2k?: number }> = [];
 
-        // Use the most recent session for Ghost You
-        if (!mostRecentSessionResults) {
-          mostRecentSessionResults = effectiveResults;
+        for (const prior of priors) {
+          const events = await getSessionEvents(prior.session_id);
+          const effectiveResults = computeEffectiveResultsFromEvents(events);
+          priorResults.push(effectiveResults);
+
+          // Use the most recent session for Ghost You
+          if (!mostRecentSessionResults) {
+            mostRecentSessionResults = effectiveResults;
+          }
         }
-      }
 
-      // Generate baseline from actual results (or null if no prior results)
-      const baseline = priorResults.length > 0 ? generateBaseline(priorResults) : null;
+        // Generate baseline from actual results (or null if no prior results)
+        baseline = priorResults.length > 0 ? generateBaseline(priorResults) : null;
+      } catch (error) {
+        // Offline: start from the last baseline cached on this device. Ghost You needs live results.
+        if (navigator.onLine) throw error;
+        baseline = await getLastCachedBaseline();
+      }
 
       const competitor_seed = Math.floor(Math.random() * 1000000);
 
@@ -157,6 +172,11 @@ export default function HomeScreen({ user, onStartSession, onLogout, onViewProgr
       </header>
 
       <main className="home-content">
+        {!online && (
+          <p className="offline-note" role="status">
+            Offline. New sessions and results are saved on this device and sync when you reconnect.
+          </p>
+        )}
         <section className="start-session-section">
           <h2>Start a Session</h2>
           <div className="session-buttons">
